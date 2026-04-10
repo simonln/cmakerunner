@@ -67,9 +67,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (currentPreset) {
       await mappingEngine.rebuild(currentPreset);
       const targets = mappingEngine.getTargets();
-      logger.info(`Resolved ${targets.length} mapped target(s) for preset ${currentPreset.name}`);
+    //   logger.info(`Resolved ${targets.length} mapped target(s) for preset ${currentPreset.name}`);
       targetTreeDataProvider.setTargets(targets, currentPreset.sourceDir, activeFile);
-      await revealActiveSource(activeFile);
+    //   await revealActiveSource(activeFile);
       return;
     }
 
@@ -104,13 +104,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const resolveTargetFromArgument = async (value?: TargetTreeItem | SourceTreeItem): Promise<TargetInfo | undefined> => {
     if (value instanceof TargetTreeItem) {
-      logger.info(`Resolved target from tree item: ${value.target.name}`);
+    //   logger.info(`Resolved target from tree item: ${value.target.name}`);
       return value.target;
     }
 
     if (value instanceof SourceTreeItem) {
       const target = mappingEngine.findTargetsBySource(value.sourcePath)[0];
-      logger.info(`Resolved target from source item ${value.sourcePath}: ${target?.name ?? 'none'}`);
+    //   logger.info(`Resolved target from source item ${value.sourcePath}: ${target?.name ?? 'none'}`);
       return target;
     }
 
@@ -126,7 +126,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       logger.warn(`No target mapping found for active file: ${activePath}`);
       void vscode.window.showWarningMessage('The active source file is not mapped to any executable target.');
     }
-    logger.info(`Resolved target from active editor ${activePath}: ${target?.name ?? 'none'}`);
+    // logger.info(`Resolved target from active editor ${activePath}: ${target?.name ?? 'none'}`);
     return target;
   };
 
@@ -175,7 +175,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await selectPreset(item.preset);
     }),
     vscode.commands.registerCommand('psgmrunner.buildPreset', async (item?: PresetTreeItem) => {
-      logger.info(`Build preset command invoked. requestedPreset=${item?.preset.name ?? currentPreset?.name ?? 'none'}`);
+    //   logger.info(`Build preset command invoked. requestedPreset=${item?.preset.name ?? currentPreset?.name ?? 'none'}`);
       const preset = item?.preset ?? ensurePreset();
       if (!preset) {
         return;

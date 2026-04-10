@@ -66,7 +66,7 @@ export class TaskExecutionEngine {
         resolved = true;
         endProcessDisposable.dispose();
         endTaskDisposable.dispose();
-        this.logger.info(`Finished task ${label} with exit code ${exitCode ?? 'unknown'}`);
+        // this.logger.info(`Finished task ${label} with exit code ${exitCode ?? 'unknown'}`);
         resolve({ exitCode });
       };
 

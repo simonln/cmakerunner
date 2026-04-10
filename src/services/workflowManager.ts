@@ -66,7 +66,7 @@ export class WorkflowManager {
   }
 
   public async runTarget(preset: PresetInfo, target: TargetInfo, buildFirst = true): Promise<void> {
-    this.logger.info(`Starting run for target ${target.name} with preset ${preset.name}. buildFirst=${buildFirst}`);
+    // this.logger.info(`Starting run for target ${target.name} with preset ${preset.name}. buildFirst=${buildFirst}`);
     if (buildFirst) {
       const buildVariables = this.createVariables(preset, target);
       const buildCommand = this.configurationManager.getBuildCommand(buildVariables);
@@ -89,14 +89,14 @@ export class WorkflowManager {
   }
 
   public async debugTarget(preset: PresetInfo, target: TargetInfo): Promise<void> {
-    this.logger.info(`Starting debug flow for target ${target.name} with preset ${preset.name}`);
+    // this.logger.info(`Starting debug flow for target ${target.name} with preset ${preset.name}`);
     const buildVariables = this.createVariables(preset, target);
     const buildCommand = this.configurationManager.getBuildCommand(buildVariables);
     const buildLabel = `CMake Runner: Build ${target.displayName} [${preset.name}]`;
     const result = await this.taskExecutionEngine.executeBuild(buildCommand, buildLabel);
 
     if (result.exitCode === 0) {
-      this.logger.info(`Build before debug succeeded for target ${target.name}`);
+    //   this.logger.info(`Build before debug succeeded for target ${target.name}`);
       await this.startDebugging(preset, target);
       return;
     }
@@ -112,7 +112,7 @@ export class WorkflowManager {
     const program = this.configurationManager.resolveDebugProgram(variables);
     const debugType = process.platform === 'win32' ? 'cppvsdbg' : 'cppdbg';
 
-    this.logger.info(`Starting debug session for ${target.name}. type=${debugType}, program=${program}`);
+    // this.logger.info(`Starting debug session for ${target.name}. type=${debugType}, program=${program}`);
 
     const started = await vscode.debug.startDebugging(undefined, {
       name: `Debug ${target.displayName}`,
@@ -131,7 +131,7 @@ export class WorkflowManager {
       return;
     }
 
-    this.logger.info(`Debug session started for ${target.name}`);
+    // this.logger.info(`Debug session started for ${target.name}`);
   }
 
   private createPresetVariables(preset: PresetInfo): { buildDir: string; preset: string; sourceDir: string } {
@@ -158,7 +158,7 @@ export class WorkflowManager {
     try {
       await vscode.workspace.fs.createDirectory(queryDir);
       await vscode.workspace.fs.writeFile(queryFile, new Uint8Array());
-      this.logger.info(`Prepared CMake File API query at ${queryFile.fsPath}`);
+    //   this.logger.info(`Prepared CMake File API query at ${queryFile.fsPath}`);
     } catch (error) {
       this.logger.warn(`Unable to prepare CMake File API query for ${preset.name}: ${error instanceof Error ? error.message : String(error)}`);
     }
