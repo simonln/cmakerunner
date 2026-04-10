@@ -2,3 +2,7 @@ src/**
 tsconfig.json
 design.md
 .gitignore
+.kilo/**
+node_modules/**
+**/*.ts
+**/*.tsbuildinfo

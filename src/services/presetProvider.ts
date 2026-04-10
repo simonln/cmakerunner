@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { PresetInfo } from '../models';
 import { replaceTemplateVariables, toAbsolutePath } from '../utils';
+import { OutputLogger } from './outputLogger';
 
 interface RawPreset {
   readonly name?: string;
@@ -17,15 +18,21 @@ interface RawPresetFile {
 }
 
 export class PresetProvider {
-  public constructor(private readonly workspaceRoot: string) {}
+  public constructor(
+    private readonly workspaceRoot: string,
+    private readonly logger: OutputLogger,
+  ) {}
 
   public async loadPresets(): Promise<PresetInfo[]> {
     const presetsPath = vscode.Uri.file(path.join(this.workspaceRoot, 'CMakePresets.json'));
     let content: Uint8Array;
 
+    this.logger.info(`Loading presets from ${presetsPath.fsPath}`);
+
     try {
       content = await vscode.workspace.fs.readFile(presetsPath);
-    } catch {
+    } catch (error) {
+      this.logger.warn(`Unable to read presets file ${presetsPath.fsPath}: ${error instanceof Error ? error.message : String(error)}`);
       return [];
     }
 
@@ -59,7 +66,7 @@ export class PresetProvider {
       return { ...mergedParent, ...preset };
     };
 
-    return configurePresets
+    const presets = configurePresets
       .filter((preset) => preset.name)
       .map((preset) => resolvePreset(preset.name as string, new Set<string>()))
       .filter((preset) => !preset.hidden && !!preset.name && !!preset.binaryDir)
@@ -79,5 +86,8 @@ export class PresetProvider {
         } satisfies PresetInfo;
       })
       .sort((left, right) => left.displayName.localeCompare(right.displayName));
+
+    this.logger.info(`Loaded ${presets.length} visible configure preset(s)`);
+    return presets;
   }
 }

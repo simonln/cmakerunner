@@ -16,6 +16,7 @@
     ],
     "main": "./out/extension.js",
     "scripts": {
+        "vscode:prepublish": "npm run compile",
         "compile": "tsc -p ./",
         "watch": "tsc -watch -p ./"
     },
@@ -82,14 +83,9 @@
             ],
             "view/item/context": [
                 {
-                    "command": "psgmrunner.selectPreset",
-                    "when": "view == psgmrunner.presets && viewItem == preset",
-                    "group": "inline@1"
-                },
-                {
                     "command": "psgmrunner.buildPreset",
                     "when": "view == psgmrunner.presets && viewItem == preset",
-                    "group": "inline@2"
+                    "group": "inline@1"
                 },
                 {
                     "command": "psgmrunner.buildTarget",
@@ -118,8 +114,8 @@
                 },
                 "psgmrunner.tasks.presetConfigureCommandTemplate": {
                     "type": "string",
-                    "default": "cmake --preset ${preset}",
-                    "description": "Preset configure command template. Supports ${buildDir}, ${preset}, and ${sourceDir}."
+                    "default": "cmake --preset ${preset} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+                    "description": "Preset configure command template. Supports ${buildDir}, ${preset}, and ${sourceDir}. The default also enables compile_commands.json generation."
                 },
                 "psgmrunner.tasks.runCommandTemplate": {
                     "type": "string",

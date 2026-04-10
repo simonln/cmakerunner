@@ -18,8 +18,9 @@ This repository currently contains the extension source code and a packaged arti
 - Resolves `binaryDir` with basic variable replacement such as `${sourceDir}`
 
 ### 2. Source-to-target mapping
+- Reads CMake File API metadata from the selected preset build directory after configure
 - Reads `compile_commands.json` from the selected preset build directory
-- Builds an in-memory mapping between source files and executable targets
+- Lists executable targets from CMake-generated metadata and builds source-to-target mappings
 - Supports automatic target lookup from the active editor file
 
 ### 3. Sidebar views
@@ -54,13 +55,16 @@ Supported variables:
 Before using the extension, make sure your workspace provides:
 
 1. A valid `CMakePresets.json`
-2. A generated `compile_commands.json` inside the preset build directory
-3. A C++ debug environment in VS Code
+2. A configured preset build directory that contains `CMakeCache.txt`
+3. A generated `compile_commands.json` if you want source-to-target editor mapping
+4. A C++ debug environment in VS Code
    - Windows: usually `cppvsdbg`
    - Linux/macOS: usually `cppdbg`
-4. A working CMake-based C++ project
+5. A working CMake-based C++ project
 
-If `compile_commands.json` is missing, the extension can load presets, but target mapping will be empty.
+`Build Preset` now runs CMake configure with `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON` by default, so `compile_commands.json` is generated automatically unless you override `psgmrunner.tasks.presetConfigureCommandTemplate`.
+
+If `compile_commands.json` is still missing, the extension can still list executable targets from CMake metadata, but source-file mapping will be empty.
 
 ---
 
@@ -90,13 +94,15 @@ In the `psgmrunner` activity bar view:
 - The extension loads the preset `binaryDir`
 
 ### 3. Load targets
-After a preset is selected, the extension looks for:
+After a preset is selected, the extension looks for CMake-generated metadata in the build directory, including:
 
 ```text
+<binaryDir>/CMakeCache.txt
 <binaryDir>/compile_commands.json
+<binaryDir>/.cmake/api/v1/reply/
 ```
 
-If found, executable targets will appear in the **Targets** panel.
+If configure metadata is available, executable targets will appear in the **Targets** panel.
 
 ### 4. Build a target
 In the **Targets** view:
@@ -144,6 +150,7 @@ Add settings in your workspace or user `settings.json`:
 
 ```json
 {
+  "psgmrunner.tasks.presetConfigureCommandTemplate": "cmake --preset ${preset} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
   "psgmrunner.tasks.buildCommandTemplate": "cmake --build ${buildDir} --config ${preset} --target ${target}",
   "psgmrunner.tasks.runCommandTemplate": "${buildDir}/${target}",
   "psgmrunner.tasks.clearTerminalBeforeRun": true
@@ -154,6 +161,7 @@ Add settings in your workspace or user `settings.json`:
 - `${target}` is the inferred executable target name
 - `${buildDir}` comes from the selected preset
 - `${sourceDir}` is the workspace root
+- Keep `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON` in the preset configure command if you want automatic target mapping
 - On Windows, you may customize the run command to append `.exe` if needed
 
 Example:
@@ -232,7 +240,7 @@ psgmrunner-0.0.1.vsix
 
 ### Main modules
 - `PresetProvider`: parse `CMakePresets.json`
-- `MappingEngine`: build source-to-target mapping from `compile_commands.json`
+- `MappingEngine`: read CMake metadata, list executable targets, and build source-to-target mappings
 - `TaskExecutionEngine`: execute build and run tasks
 - `WorkflowManager`: coordinate build, run, and debug lifecycle
 - `PresetTreeDataProvider` / `TargetTreeDataProvider`: render sidebar views
@@ -241,7 +249,7 @@ psgmrunner-0.0.1.vsix
 
 ## Known limitations
 
-1. Target name inference is based on `compile_commands.json` and compiler output metadata, so unusual toolchain layouts may require future refinement.
+1. Source-file mapping still depends on `compile_commands.json`, so editor-to-target reveal is limited when compile commands are unavailable.
 2. Debug launch configuration is created dynamically and assumes a valid C/C++ debugging backend is available.
 3. The current workflow focuses on build/run/debug and does not manage the configure/generate phase automatically.
 
