@@ -18,7 +18,7 @@ export class WorkflowManager {
     await this.ensureCMakeFileApiQuery(preset);
     const variables = this.createPresetVariables(preset);
     const command = this.configurationManager.getPresetConfigureCommand(variables);
-    const label = `PSGM Runner: Configure [${preset.name}]`;
+    const label = `Configure [${preset.name}]`;
     const result = await this.taskExecutionEngine.executeBuild(command, label, vscode.TaskRevealKind.Never);
 
     if (result.exitCode === 0) {
@@ -38,7 +38,7 @@ export class WorkflowManager {
     // this.logger.info(`Starting build for target ${target.name} with preset ${preset.name}`);
     const variables = this.createVariables(preset, target);
     const command = this.configurationManager.getBuildCommand(variables);
-    const label = `PSGM Runner: Build ${target.displayName} [${preset.name}]`;
+    const label = `Build ${target.displayName} [${preset.name}]`;
     const result = await this.taskExecutionEngine.executeBuild(command, label, vscode.TaskRevealKind.Never);
 
     if (result.exitCode === 0) {
@@ -71,7 +71,7 @@ export class WorkflowManager {
     if (buildFirst) {
       const buildVariables = this.createVariables(preset, target);
       const buildCommand = this.configurationManager.getBuildCommand(buildVariables);
-      const buildLabel = `PSGM Runner: Build ${target.displayName} [${preset.name}]`;
+      const buildLabel = `Build ${target.displayName} [${preset.name}]`;
       const buildResult = await this.taskExecutionEngine.executeBuild(buildCommand, buildLabel);
       if (buildResult.exitCode !== 0) {
         if (typeof buildResult.exitCode === 'number') {
@@ -84,7 +84,7 @@ export class WorkflowManager {
 
     const runVariables = this.createVariables(preset, target);
     const runCommand = this.configurationManager.getRunCommand(runVariables);
-    const runLabel = `PSGM Runner: Run ${target.displayName} [${preset.name}]`;
+    const runLabel = `Run ${target.displayName} [${preset.name}]`;
     this.logger.info(`Launching run task for target ${target.name}`);
     await this.taskExecutionEngine.executeRun(runCommand, runLabel);
   }
@@ -93,7 +93,7 @@ export class WorkflowManager {
     // this.logger.info(`Starting debug flow for target ${target.name} with preset ${preset.name}`);
     const buildVariables = this.createVariables(preset, target);
     const buildCommand = this.configurationManager.getBuildCommand(buildVariables);
-    const buildLabel = `PSGM Runner: Build ${target.displayName} [${preset.name}]`;
+    const buildLabel = `Build ${target.displayName} [${preset.name}]`;
     const result = await this.taskExecutionEngine.executeBuild(buildCommand, buildLabel);
 
     if (result.exitCode === 0) {
