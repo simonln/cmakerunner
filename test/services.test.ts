@@ -212,5 +212,30 @@ it('should call appendLine for info level', () => {
 
       vscode.workspace.getConfiguration = originalGetConfig;
     });
+
+    it('should fall back to default executable path when run command is empty', () => {
+      const mockConfig = createMockConfig({
+        'tasks.runCommandTemplate': '',
+      });
+
+      const originalGetConfig = vscode.workspace.getConfiguration;
+      (vscode.workspace as any).getConfiguration = () => mockConfig;
+
+      const manager = new ConfigurationManager();
+      const result = manager.resolveDebugProgram({
+        buildDir: '/build/debug',
+        preset: 'debug',
+        target: 'myapp',
+        sourceDir: '/src',
+        configurationArgument: '',
+        quotedExecutablePath: '"/build/debug/myapp"',
+        executableCommand: '"/build/debug/myapp"',
+        buildPresetArgument: '',
+      });
+
+      assert.strictEqual(result, require('path').join('/build/debug', 'myapp.exe'));
+
+      vscode.workspace.getConfiguration = originalGetConfig;
+    });
   });
 });

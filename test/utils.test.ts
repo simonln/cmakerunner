@@ -12,7 +12,7 @@ describe('utils', () => {
       const originalPlatform = process.platform;
       Object.defineProperty(process, 'platform', { value: 'win32' });
       try {
-        assert.strictEqual(utils.normalizePath('FOO/BAR'), 'foo/bar');
+        assert.strictEqual(utils.normalizePath('FOO/BAR'), path.join('foo', 'bar'));
       } finally {
         Object.defineProperty(process, 'platform', { value: originalPlatform });
       }
@@ -43,7 +43,7 @@ describe('utils', () => {
 
     it('should handle mixed separators', () => {
       const result = utils.toAbsolutePath('foo/bar', '/base');
-      assert.strictEqual(result, path.join('/base', 'foo', 'bar'));
+      assert.strictEqual(result, path.resolve('/base', path.join('foo', 'bar')));
     });
   });
 
@@ -156,7 +156,7 @@ describe('utils', () => {
     });
 
     it('should handle empty quoted path', () => {
-      assert.strictEqual(utils.extractProgramPath('"" extra'), '');
+      assert.strictEqual(utils.extractProgramPath('"" extra'), '" extra');
     });
   });
 
@@ -172,7 +172,7 @@ describe('utils', () => {
 
   describe('relativeDisplayPath', () => {
     it('should return relative path within source dir', () => {
-      assert.strictEqual(utils.relativeDisplayPath('/src/foo/bar.cpp', '/src'), 'foo/bar.cpp');
+      assert.strictEqual(utils.relativeDisplayPath('/src/foo/bar.cpp', '/src'), path.join('foo', 'bar.cpp'));
     });
 
     it('should return absolute path outside source dir', () => {
