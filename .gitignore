@@ -4,3 +4,4 @@ out/
 *.vsix
 *.tsbuildinfo
 doc/*.json
+.kilo/**
