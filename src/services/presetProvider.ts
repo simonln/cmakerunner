@@ -1,4 +1,5 @@
 import { execFile } from 'child_process';
+import * as fs from 'fs';
 import * as path from 'path';
 import { promisify } from 'util';
 import * as vscode from 'vscode';
@@ -38,6 +39,8 @@ interface ListedPreset {
 }
 
 export class PresetProvider {
+  private resolvedCMakeExecutable: string | undefined;
+
   public constructor(
     private readonly workspaceRoot: string,
     private readonly logger: OutputLogger,
@@ -178,8 +181,10 @@ export class PresetProvider {
   }
 
   private async listPresetsFromCMake(type: 'configure' | 'build'): Promise<ListedPreset[]> {
+    const cmakeExecutable = await this.resolveCMakeExecutable();
+
     try {
-      const { stdout } = await execFileAsync('cmake', ['-S', this.workspaceRoot, `--list-presets=${type}`], {
+      const { stdout } = await execFileAsync(cmakeExecutable, ['-S', this.workspaceRoot, `--list-presets=${type}`], {
         cwd: this.workspaceRoot,
         windowsHide: true,
       });
@@ -199,8 +204,89 @@ export class PresetProvider {
 
       return presets;
     } catch (error) {
-      this.logger.warn(`Unable to query ${type} presets from CMake: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `Unable to query ${type} presets from CMake (${cmakeExecutable}): ${error instanceof Error ? error.message : String(error)}`,
+      );
       return [];
+    }
+  }
+
+  private async resolveCMakeExecutable(): Promise<string> {
+    if (this.resolvedCMakeExecutable) {
+      return this.resolvedCMakeExecutable;
+    }
+
+    const configuredPath = vscode.workspace.getConfiguration('psgmrunner').get<string>('cmakePath', '').trim();
+    if (configuredPath) {
+      if (path.isAbsolute(configuredPath) && !fs.existsSync(configuredPath)) {
+        this.logger.warn(`Configured psgmrunner.cmakePath does not exist: ${configuredPath}`);
+      } else {
+        this.resolvedCMakeExecutable = configuredPath;
+        return configuredPath;
+      }
+    }
+
+    if (process.platform === 'win32') {
+      const fromWhere = await this.findCMakeFromWhere();
+      if (fromWhere) {
+        this.resolvedCMakeExecutable = fromWhere;
+        return fromWhere;
+      }
+
+      const fromVsWhere = await this.findCMakeFromVsWhere();
+      if (fromVsWhere) {
+        this.resolvedCMakeExecutable = fromVsWhere;
+        return fromVsWhere;
+      }
+    }
+
+    this.resolvedCMakeExecutable = 'cmake';
+    return this.resolvedCMakeExecutable;
+  }
+
+  private async findCMakeFromWhere(): Promise<string | undefined> {
+    try {
+      const { stdout } = await execFileAsync('where.exe', ['cmake'], { windowsHide: true });
+      const firstMatch = stdout
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .find((line) => line.length > 0);
+      return firstMatch;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async findCMakeFromVsWhere(): Promise<string | undefined> {
+    const programFilesX86 = process.env['ProgramFiles(x86)'] ?? process.env.ProgramFiles;
+    if (!programFilesX86) {
+      return undefined;
+    }
+
+    const vswherePath = path.join(programFilesX86, 'Microsoft Visual Studio', 'Installer', 'vswhere.exe');
+    if (!fs.existsSync(vswherePath)) {
+      return undefined;
+    }
+
+    try {
+      const { stdout } = await execFileAsync(vswherePath, [
+        '-latest',
+        '-products',
+        '*',
+        '-requires',
+        'Microsoft.VisualStudio.Component.VC.CMake.Project',
+        '-find',
+        'Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\bin\\cmake.exe',
+      ], {
+        windowsHide: true,
+      });
+      const firstMatch = stdout
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .find((line) => line.length > 0);
+      return firstMatch;
+    } catch {
+      return undefined;
     }
   }
 
