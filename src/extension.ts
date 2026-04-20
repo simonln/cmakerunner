@@ -118,6 +118,34 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     return currentPreset;
   };
 
+  const clearPresetBuildDirectory = async (preset: PresetInfo): Promise<boolean> => {
+    const buildDirectoryUri = vscode.Uri.file(preset.binaryDir);
+
+    try {
+      await vscode.workspace.fs.stat(buildDirectoryUri);
+    } catch (error) {
+      const code = (error as vscode.FileSystemError | undefined)?.code;
+      if (code === 'FileNotFound') {
+        logger.info(`Skipping build directory cleanup because it does not exist: ${preset.binaryDir}`);
+        return true;
+      }
+
+      logger.warn(`Unable to inspect build directory ${preset.binaryDir}: ${error instanceof Error ? error.message : String(error)}`);
+      void vscode.window.showErrorMessage(`Unable to access build directory for preset ${preset.displayName}.`);
+      return false;
+    }
+
+    try {
+      logger.info(`Cleaning build directory for preset ${preset.name}: ${preset.binaryDir}`);
+      await vscode.workspace.fs.delete(buildDirectoryUri, { recursive: true, useTrash: false });
+      return true;
+    } catch (error) {
+      logger.warn(`Unable to clean build directory ${preset.binaryDir}: ${error instanceof Error ? error.message : String(error)}`);
+      void vscode.window.showErrorMessage(`Unable to clean build directory for preset ${preset.displayName}.`);
+      return false;
+    }
+  };
+
   const resolveTargetFromArgument = async (value?: TargetTreeItem | SourceTreeItem): Promise<TargetInfo | undefined> => {
     if (value instanceof TargetTreeItem) {
     //   logger.info(`Resolved target from tree item: ${value.target.name}`);
@@ -231,6 +259,37 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
       void vscode.window.showInformationMessage(
         `Preset ${preset.displayName} configured successfully. Targets: ${targetSummary}`,
+      );
+    }),
+    vscode.commands.registerCommand('psgmrunner.rebuildPreset', async (item?: PresetTreeItem) => {
+      const preset = item?.preset ?? ensurePreset();
+      if (!preset) {
+        return;
+      }
+
+      if (currentPreset?.name !== preset.name) {
+        await selectPreset(preset);
+      }
+
+      const cleared = await clearPresetBuildDirectory(preset);
+      if (!cleared) {
+        return;
+      }
+
+      const configured = await workflowManager.buildPreset(preset);
+      if (!configured) {
+        return;
+      }
+
+      await updateTargets();
+
+      const targets = mappingEngine.getTargets();
+      const targetSummary = targets.length > 0
+        ? targets.map((target) => target.displayName).join(', ')
+        : 'No executable targets were found.';
+
+      void vscode.window.showInformationMessage(
+        `Preset ${preset.displayName} rebuilt successfully. Targets: ${targetSummary}`,
       );
     }),
     vscode.commands.registerCommand('psgmrunner.buildTarget', async (item?: TargetTreeItem | SourceTreeItem) => {

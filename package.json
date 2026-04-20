@@ -48,6 +48,10 @@
                 "title": "Build"
             },
             {
+                "command": "psgmrunner.rebuildPreset",
+                "title": "Rebuild"
+            },
+            {
                 "command": "psgmrunner.buildTarget",
                 "title": "Build"
             },
@@ -112,6 +116,11 @@
                     "command": "psgmrunner.buildPreset",
                     "when": "view == psgmrunner.presets && viewItem == preset",
                     "group": "inline@1"
+                },
+                {
+                    "command": "psgmrunner.rebuildPreset",
+                    "when": "view == psgmrunner.presets && viewItem == preset",
+                    "group": "inline@2"
                 },
                 {
                     "command": "psgmrunner.buildTarget",
