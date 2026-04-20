@@ -134,6 +134,7 @@ The extension exposes these settings in VS Code `settings.json`:
 
 | Setting | Default | Description |
 | --- | --- | --- |
+| `psgmrunner.cmakePath` | `""` | Optional path to `cmake` executable for preset discovery. Useful when CMake is bundled with Visual Studio but not on `PATH`. |
 | `psgmrunner.tasks.presetConfigureCommandTemplate` | `cmake --preset ${preset} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON` | Configure command template used for preset builds |
 | `psgmrunner.tasks.buildCommandTemplate` | `cmake --build ${buildDir}${configurationArgument} --target ${target}` | Build command template used for targets |
 | `psgmrunner.tasks.runCommandTemplate` | `${executableCommand}` | Run command template used for targets |
@@ -163,6 +164,7 @@ The extension exposes these settings in VS Code `settings.json`:
 
 ```json
 {
+  "psgmrunner.cmakePath": "C:/Program Files/Microsoft Visual Studio/2022/Professional/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe",
   "psgmrunner.tasks.presetConfigureCommandTemplate": "cmake --preset ${preset} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
   "psgmrunner.tasks.buildCommandTemplate": "cmake --build ${buildDir}${configurationArgument} --target ${target}",
   "psgmrunner.tasks.runCommandTemplate": "${executableCommand}",
