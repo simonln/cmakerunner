@@ -46,22 +46,34 @@
             },
             {
                 "command": "cmakerunner.buildPreset",
-                "title": "Build"
+                "title": "Build Preset",
+                "icon": {
+                    "light": "resources/build-light.svg",
+                    "dark": "resources/build-dark.svg"
+                }
             },
             {
                 "command": "cmakerunner.rebuildPreset",
-                "title": "Rebuild"
+                "title": "Rebuild Preset",
+                "icon": {
+                    "light": "resources/rebuild-light.svg",
+                    "dark": "resources/rebuild-dark.svg"
+                }
             },
             {
                 "command": "cmakerunner.buildTarget",
-                "title": "Build"
+                "title": "Build Target",
+                "icon": {
+                    "light": "resources/build-target-light.svg",
+                    "dark": "resources/build-target-dark.svg"
+                }
             },
             {
                 "command": "cmakerunner.buildTargetFromCurrentFile",
                 "title": "Build Target From Current File",
                 "icon": {
-                    "light": "resources/build-current-file-light.svg",
-                    "dark": "resources/build-current-file-dark.svg"
+                    "light": "resources/build-target-light.svg",
+                    "dark": "resources/build-target-dark.svg"
                 }
             },
             {
@@ -74,18 +86,26 @@
             },
             {
                 "command": "cmakerunner.runTarget",
-                "title": "Run"
+                "title": "Run Target",
+                "icon": {
+                    "light": "resources/run-light.svg",
+                    "dark": "resources/run-dark.svg"
+                }
             },
             {
                 "command": "cmakerunner.debugTarget",
-                "title": "Debug"
+                "title": "Debug Target",
+                "icon": {
+                    "light": "resources/debug-light.svg",
+                    "dark": "resources/debug-dark.svg"
+                }
             }
         ],
         "viewsContainers": {
             "activitybar": [
                 {
                     "id": "cmakerunner",
-                    "title": "cmakerunner",
+                    "title": "CMake Runner",
                     "icon": "resources/cmake-runner.svg"
                 }
             ]
