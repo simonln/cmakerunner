@@ -181,4 +181,44 @@ describe('extension commands', () => {
     assert.ok(demoItem?.detail?.includes(path.join('src', 'demo.cpp')));
     assert.ok(appItem?.detail?.includes(path.join('src', 'common.cpp')));
   });
+
+  it('runGTestCase resolves the active source file target', async () => {
+    await activateExtension();
+
+    let gtestTargetName: string | undefined;
+    const workflowModule = require('../src/services/workflowManager') as typeof import('../src/services/workflowManager');
+    const originalRunGTestCase = workflowModule.WorkflowManager.prototype.runGTestCase;
+    workflowModule.WorkflowManager.prototype.runGTestCase = async (_preset, target) => {
+      gtestTargetName = target.name;
+    };
+
+    try {
+      await vscode.commands.executeCommand('cmakerunner.runGTestCase');
+    } finally {
+      workflowModule.WorkflowManager.prototype.runGTestCase = originalRunGTestCase;
+    }
+
+    assert.strictEqual(gtestTargetName, 'app');
+  });
+
+  it('creates a GTests view alongside the Targets view', async () => {
+    await activateExtension();
+
+    assert.ok(mockedVscode.__mock.createdTreeViews.has('cmakerunner.targets'));
+    assert.ok(mockedVscode.__mock.createdTreeViews.has('cmakerunner.gtests'));
+  });
+
+  it('filterGTests applies and clears the gtest view filter', async () => {
+    await activateExtension();
+
+    (vscode.window as any).showInputBox = async () => 'MathTest';
+    await vscode.commands.executeCommand('cmakerunner.filterGTests');
+
+    const gtestsTreeView = mockedVscode.__mock.createdTreeViews.get('cmakerunner.gtests');
+    assert.ok(gtestsTreeView);
+    assert.strictEqual(gtestsTreeView?.description, 'Filter: MathTest');
+
+    await vscode.commands.executeCommand('cmakerunner.clearGTestFilter');
+    assert.strictEqual(gtestsTreeView?.description, undefined);
+  });
 });

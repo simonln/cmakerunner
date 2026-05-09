@@ -102,7 +102,16 @@ code --install-extension cmakerunner-0.0.8.vsix
 
 默认情况下，这两个操作都会先构建目标。
 
-### 6. 过滤目标
+### 6. 运行单个 GoogleTest 用例
+
+你可以在和 **Targets** 并列的 **GTests** 视图中按可执行目标查看 GoogleTest 用例。
+展开某个目标时会执行 `--gtest_list_tests` 读取用例；点击单个用例后，会用
+`--gtest_filter=<suite.case>` 只运行该用例。
+使用 `Filter` 可以按目标名、可执行文件名、suite 名、case 名或完整
+`suite.case` 过滤；使用 `Clear Filter` 清除过滤；使用 `Refresh`
+清除已缓存的用例发现结果。
+
+### 7. 过滤目标
 
 你可以在 **Targets** 视图中使用 `Filter` 匹配：
 
@@ -122,7 +131,11 @@ code --install-extension cmakerunner-0.0.8.vsix
 - `cmakerunner.buildPreset`：对选中的 preset 执行 configure 并刷新目标
 - `cmakerunner.buildTarget`：构建解析到的目标
 - `cmakerunner.runTarget`：构建并运行解析到的目标
+- `cmakerunner.runGTestCase`：构建解析到的目标，选择并运行单个 GoogleTest 用例
 - `cmakerunner.debugTarget`：构建并调试解析到的目标
+- `cmakerunner.refreshGTests`：清除 GoogleTest 发现缓存并刷新 GTests 视图
+- `cmakerunner.filterGTests`：过滤可见的 GoogleTest 目标和用例
+- `cmakerunner.clearGTestFilter`：清除当前 GoogleTest 过滤条件
 - `cmakerunner.filterTargets`：过滤可见目标和源码节点
 - `cmakerunner.clearTargetFilter`：清除当前目标过滤条件
 

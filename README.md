@@ -105,7 +105,16 @@ You can invoke these actions directly on a target:
 
 By default, both actions build the target first.
 
-### 6. Filter targets
+### 6. Run one GoogleTest case
+
+Use the **GTests** view next to **Targets** to inspect GoogleTest cases by executable target.
+Expanding a target runs it with `--gtest_list_tests`. Selecting a discovered case runs the same
+target with `--gtest_filter=<suite.case>`.
+Use `Filter` to match target names, executable names, suite names, case names, or full
+`suite.case` filters. Use `Clear Filter` to remove the filter, and `Refresh` to clear
+cached discovery results.
+
+### 7. Filter targets
 
 Use `Filter` in the **Targets** view to open a target picker that is auto-filtered from the current file when possible. You can still fall back to manual text filtering to match:
 
@@ -125,7 +134,11 @@ The extension currently contributes these commands:
 - `cmakerunner.buildPreset`: configure the selected preset and refresh targets
 - `cmakerunner.buildTarget`: build the resolved target
 - `cmakerunner.runTarget`: build and run the resolved target
+- `cmakerunner.runGTestCase`: build the resolved target, select a GoogleTest case, and run only that case
 - `cmakerunner.debugTarget`: build and debug the resolved target
+- `cmakerunner.refreshGTests`: clear cached GoogleTest discovery results and reload the GTests view
+- `cmakerunner.filterGTests`: filter visible GoogleTest targets and cases
+- `cmakerunner.clearGTestFilter`: clear the current GoogleTest filter
 - `cmakerunner.filterTargets`: filter visible targets and source nodes
 - `cmakerunner.clearTargetFilter`: clear the current target filter
 
