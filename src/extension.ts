@@ -287,6 +287,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       target,
     }));
 
+    if (options?.userActiveFile && items.length === 1) {
+      return items[0];
+    }
+
     const prompt = 'Filter targets by executable name or C/C++ source file name';
     const placeHolder= 'Example: app, main.cpp, demo.exe, src/test.cpp';
     return vscode.window.showQuickPick(items, {
