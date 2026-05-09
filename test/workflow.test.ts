@@ -1,7 +1,10 @@
 import * as assert from 'assert';
+import type { ChildProcess } from 'child_process';
 import * as vscode from 'vscode';
 import { PresetInfo, TargetInfo } from '../src/models';
-import { WorkflowManager } from '../src/services/workflowManager';
+import { parseGTestListOutput, WorkflowManager } from '../src/services/workflowManager';
+
+const childProcess = require('child_process') as typeof import('child_process');
 
 describe('workflow manager', () => {
   const preset: PresetInfo = {
@@ -189,6 +192,48 @@ describe('workflow manager', () => {
     await manager.runTarget(preset, target, false);
     assert.strictEqual(runCount, 1);
     assert.strictEqual(runDirectory, preset.binaryDir);
+  });
+
+  it('parseGTestListOutput parses suites, tests, and comments', () => {
+    const parsed = parseGTestListOutput([
+      'MathTest.',
+      '  Adds',
+      '  Divides # GetParam() = 1',
+      'TypedSuite/0.  # TypeParam = int',
+      '  Works',
+    ].join('\n'));
+
+    assert.deepStrictEqual(parsed, [
+      { suite: 'MathTest', name: 'Adds', filter: 'MathTest.Adds' },
+      { suite: 'MathTest', name: 'Divides', filter: 'MathTest.Divides' },
+      { suite: 'TypedSuite/0', name: 'Works', filter: 'TypedSuite/0.Works' },
+    ]);
+  });
+
+  it('runGTestCase lists cases and runs the selected filter', async () => {
+    const deps = createDeps();
+    let runCommand = '';
+    deps.taskExecutionEngine.executeRun = async (command?: string) => {
+      runCommand = command ?? '';
+      return { exitCode: 0 };
+    };
+
+    const originalExecFile = childProcess.execFile;
+    const originalShowQuickPick = vscode.window.showQuickPick;
+    (childProcess as any).execFile = (_file: string, _args: string[], _options: unknown, callback: Function) => {
+      callback(undefined, 'SuiteA.\n  TestOne\n  TestTwo\n', '');
+      return {} as ChildProcess;
+    };
+    (vscode.window as any).showQuickPick = async (items: readonly { label: string }[]) => items[1];
+
+    try {
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      await manager.runGTestCase(preset, target, false);
+      assert.strictEqual(runCommand, '/tmp/build/debug/app --gtest_filter=SuiteA.TestTwo');
+    } finally {
+      (childProcess as any).execFile = originalExecFile;
+      (vscode.window as any).showQuickPick = originalShowQuickPick;
+    }
   });
 
   it('debugTarget opens Run and Debug when requested after writing launch configuration', async () => {

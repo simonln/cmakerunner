@@ -1,6 +1,7 @@
 import * as path from 'path';
+import { execFile } from 'child_process';
 import * as vscode from 'vscode';
-import { PresetInfo, TargetInfo } from '../models';
+import { GTestCaseInfo, PresetInfo, TargetInfo } from '../models';
 import { quoteForShell } from '../utils';
 import { ConfigurationManager } from './configurationManager';
 import { OutputLogger } from './outputLogger';
@@ -77,6 +78,49 @@ export class WorkflowManager {
     const runCommand = this.configurationManager.getRunCommand(runVariables);
     const runLabel = `Run ${target.displayName} [${preset.name}]`;
     this.logger.info(`Launching run task for target ${target.name}`);
+    await this.taskExecutionEngine.executeRun(runCommand, runLabel, preset.binaryDir);
+  }
+
+  public async runGTestCase(
+    preset: PresetInfo,
+    target: TargetInfo,
+    buildFirst = true,
+    selectedTestCase?: GTestCaseInfo,
+  ): Promise<void> {
+    if (buildFirst) {
+      const buildVariables = this.createVariables(preset, target);
+      const built = await this.executeBuildStep({
+        command: this.configurationManager.getBuildCommand(buildVariables),
+        label: `Build ${target.displayName} [${preset.name}]`,
+        logName: target.name,
+        displayName: target.displayName,
+        failureVerb: 'Build',
+      });
+      if (!built) {
+        return;
+      }
+    }
+
+    const testCases = selectedTestCase ? [selectedTestCase] : await this.listGTestCases(preset, target);
+    if (!testCases) {
+      return;
+    }
+
+    if (!selectedTestCase && testCases.length === 0) {
+      void vscode.window.showWarningMessage(`No GoogleTest cases were found in ${target.displayName}.`);
+      return;
+    }
+
+    const testCase = selectedTestCase ?? await this.pickGTestCase(testCases);
+    if (!testCase) {
+      return;
+    }
+
+    const runVariables = this.createVariables(preset, target);
+    const gtestFilterArgument = `--gtest_filter=${quoteForShell(testCase.filter)}`;
+    const runCommand = `${this.configurationManager.getRunCommand(runVariables)} ${gtestFilterArgument}`;
+    const runLabel = `Run ${testCase.filter} [${preset.name}]`;
+    this.logger.info(`Launching GoogleTest case ${testCase.filter} for target ${target.name}`);
     await this.taskExecutionEngine.executeRun(runCommand, runLabel, preset.binaryDir);
   }
 
@@ -167,6 +211,38 @@ export class WorkflowManager {
     }
   }
 
+  public async listGTestCases(preset: PresetInfo, target: TargetInfo): Promise<GTestCaseInfo[] | undefined> {
+    try {
+      const output = await execFileText(target.guessedExecutablePath, ['--gtest_list_tests'], preset.binaryDir);
+      const testCases = parseGTestListOutput(output);
+      this.logger.info(`Discovered ${testCases.length} GoogleTest case(s) in ${target.name}`);
+      return testCases;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Unable to list GoogleTest cases for ${target.name}: ${message}`);
+      void vscode.window.showErrorMessage(`Unable to list GoogleTest cases for ${target.displayName}. ${message}`);
+      return undefined;
+    }
+  }
+
+  private async pickGTestCase(testCases: GTestCaseInfo[]): Promise<GTestCaseInfo | undefined> {
+    const picked = await vscode.window.showQuickPick(
+      testCases.map((testCase) => ({
+        label: testCase.name,
+        description: testCase.suite,
+        detail: testCase.filter,
+        testCase,
+      })),
+      {
+        placeHolder: 'Select a GoogleTest case to run',
+        matchOnDescription: true,
+        matchOnDetail: true,
+      },
+    );
+
+    return picked?.testCase;
+  }
+
   private isSameExecutableName(left: string, right: string): boolean {
     return process.platform === 'win32'
       ? left.toLowerCase() === right.toLowerCase()
@@ -246,4 +322,49 @@ export class WorkflowManager {
       this.logger.warn(`Unable to prepare CMake File API query for ${preset.name}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+}
+
+function execFileText(file: string, args: string[], cwd: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(file, args, { cwd, timeout: 15000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
+      if (error) {
+        const stderrText = stderr.trim();
+        reject(new Error(stderrText || error.message));
+        return;
+      }
+
+      resolve(stdout);
+    });
+  });
+}
+
+export function parseGTestListOutput(output: string): GTestCaseInfo[] {
+  const testCases: GTestCaseInfo[] = [];
+  let currentSuite = '';
+
+  for (const line of output.split(/\r?\n/)) {
+    const withoutComment = line.replace(/\s+#.*$/, '').trimEnd();
+    if (!withoutComment.trim()) {
+      continue;
+    }
+
+    if (!/^\s/.test(withoutComment) && withoutComment.endsWith('.')) {
+      currentSuite = withoutComment.slice(0, -1).trim();
+      continue;
+    }
+
+    const testName = withoutComment.trim();
+    if (!currentSuite || !testName) {
+      continue;
+    }
+
+    const filter = `${currentSuite}.${testName}`;
+    testCases.push({
+      suite: currentSuite,
+      name: testName,
+      filter,
+    });
+  }
+
+  return testCases;
 }

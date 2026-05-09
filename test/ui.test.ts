@@ -1,4 +1,5 @@
 import * as assert from 'assert';
+import { GTestCaseTreeItem, GTestTargetTreeItem, GTestTreeDataProvider } from '../src/ui/gtestTreeDataProvider';
 import { PresetTreeDataProvider, PresetTreeItem } from '../src/ui/presetTreeDataProvider';
 import { TargetTreeDataProvider, TargetTreeItem, SourceTreeItem } from '../src/ui/targetTreeDataProvider';
 import { TargetInfo } from '../src/models';
@@ -359,6 +360,103 @@ describe('ui', () => {
     it('should show current indicator when active', () => {
       const item = new SourceTreeItem('/src/main.cpp', 'myapp', '/src', true);
       assert.strictEqual(item.description, 'Current');
+    });
+  });
+
+  describe('GTestTreeDataProvider', () => {
+    const target: TargetInfo = {
+      id: 'tests',
+      name: 'tests',
+      displayName: 'Tests',
+      sourceFiles: ['/src/tests.cpp'],
+      guessedExecutablePath: '/build/tests',
+    };
+
+    it('should expose gtest targets as root items', async () => {
+      const provider = new GTestTreeDataProvider(async () => []);
+      provider.setTargets([target]);
+
+      const children = await provider.getChildren();
+      assert.strictEqual(children.length, 1);
+      assert.ok(children[0] instanceof GTestTargetTreeItem);
+      assert.strictEqual(children[0].contextValue, 'gtestTarget');
+    });
+
+    it('should discover and expose gtest cases below a target', async () => {
+      const provider = new GTestTreeDataProvider(async () => [
+        { suite: 'MathTest', name: 'Adds', filter: 'MathTest.Adds' },
+      ]);
+      provider.setTargets([target]);
+
+      const [targetItem] = await provider.getChildren();
+      const cases = await provider.getChildren(targetItem);
+
+      assert.strictEqual(cases.length, 1);
+      assert.ok(cases[0] instanceof GTestCaseTreeItem);
+      assert.strictEqual(cases[0].contextValue, 'gtestCase');
+      assert.strictEqual(cases[0].command?.command, 'cmakerunner.runGTestCase');
+    });
+
+    it('should cache discovered cases until refresh', async () => {
+      let discoverCount = 0;
+      const provider = new GTestTreeDataProvider(async () => {
+        discoverCount += 1;
+        return [{ suite: 'MathTest', name: `Case${discoverCount}`, filter: `MathTest.Case${discoverCount}` }];
+      });
+      provider.setTargets([target]);
+
+      const [targetItem] = await provider.getChildren();
+      await provider.getChildren(targetItem);
+      await provider.getChildren(targetItem);
+      assert.strictEqual(discoverCount, 1);
+
+      provider.refresh();
+      await provider.getChildren(targetItem);
+      assert.strictEqual(discoverCount, 2);
+    });
+
+    it('should filter gtest targets by target name', async () => {
+      const provider = new GTestTreeDataProvider(async () => []);
+      provider.setTargets([
+        target,
+        {
+          id: 'app',
+          name: 'app',
+          displayName: 'App',
+          sourceFiles: ['/src/app.cpp'],
+          guessedExecutablePath: '/build/app',
+        },
+      ]);
+
+      provider.setFilterText('tests');
+      const children = await provider.getChildren();
+      assert.strictEqual(children.length, 1);
+      assert.strictEqual(children[0].label, 'Tests');
+      assert.strictEqual(await provider.getVisibleTargetCount(), 1);
+    });
+
+    it('should filter gtest cases by suite or case name', async () => {
+      const provider = new GTestTreeDataProvider(async () => [
+        { suite: 'MathTest', name: 'Adds', filter: 'MathTest.Adds' },
+        { suite: 'StringTest', name: 'Splits', filter: 'StringTest.Splits' },
+      ]);
+      provider.setTargets([target]);
+
+      provider.setFilterText('splits');
+      const [targetItem] = await provider.getChildren();
+      const cases = await provider.getChildren(targetItem);
+
+      assert.strictEqual(cases.length, 1);
+      assert.strictEqual(cases[0].label, 'Splits');
+      assert.strictEqual(await provider.getVisibleTargetCount(), 1);
+    });
+
+    it('should clear gtest filter text', () => {
+      const provider = new GTestTreeDataProvider(async () => []);
+      provider.setFilterText('math');
+      assert.strictEqual(provider.getFilterText(), 'math');
+      provider.setFilterText('');
+      assert.strictEqual(provider.getFilterText(), '');
     });
   });
 });

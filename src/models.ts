@@ -17,6 +17,12 @@ export interface TargetInfo {
   readonly guessedExecutablePath: string;
 }
 
+export interface GTestCaseInfo {
+  readonly suite: string;
+  readonly name: string;
+  readonly filter: string;
+}
+
 export interface MappingIndex {
   readonly targets: Map<string, TargetInfo>;
   readonly sourceToTargets: Map<string, string[]>;

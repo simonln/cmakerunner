@@ -93,8 +93,28 @@
                 "title": "Clear Filter"
             },
             {
+                "command": "cmakerunner.refreshGTests",
+                "title": "Refresh"
+            },
+            {
+                "command": "cmakerunner.filterGTests",
+                "title": "Filter"
+            },
+            {
+                "command": "cmakerunner.clearGTestFilter",
+                "title": "Clear Filter"
+            },
+            {
                 "command": "cmakerunner.runTarget",
                 "title": "Run Target",
+                "icon": {
+                    "light": "resources/run-light.svg",
+                    "dark": "resources/run-dark.svg"
+                }
+            },
+            {
+                "command": "cmakerunner.runGTestCase",
+                "title": "Run GTest Case",
                 "icon": {
                     "light": "resources/run-light.svg",
                     "dark": "resources/run-dark.svg"
@@ -127,6 +147,10 @@
                 {
                     "id": "cmakerunner.targets",
                     "name": "Targets"
+                },
+                {
+                    "id": "cmakerunner.gtests",
+                    "name": "GTests"
                 }
             ]
         },
@@ -145,6 +169,21 @@
                 {
                     "command": "cmakerunner.clearTargetFilter",
                     "when": "view == cmakerunner.targets && cmakerunner.targetsFilterActive",
+                    "group": "navigation@2"
+                },
+                {
+                    "command": "cmakerunner.refreshGTests",
+                    "when": "view == cmakerunner.gtests",
+                    "group": "navigation"
+                },
+                {
+                    "command": "cmakerunner.filterGTests",
+                    "when": "view == cmakerunner.gtests",
+                    "group": "navigation@1"
+                },
+                {
+                    "command": "cmakerunner.clearGTestFilter",
+                    "when": "view == cmakerunner.gtests && cmakerunner.gtestsFilterActive",
                     "group": "navigation@2"
                 }
             ],
@@ -180,6 +219,16 @@
                     "command": "cmakerunner.debugTarget",
                     "when": "view == cmakerunner.targets && viewItem == target",
                     "group": "inline@3"
+                },
+                {
+                    "command": "cmakerunner.runGTestCase",
+                    "when": "view == cmakerunner.gtests && viewItem == gtestTarget",
+                    "group": "inline@1"
+                },
+                {
+                    "command": "cmakerunner.runGTestCase",
+                    "when": "view == cmakerunner.gtests && viewItem == gtestCase",
+                    "group": "inline@1"
                 }
             ]
         },
