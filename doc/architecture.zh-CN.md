@@ -9,8 +9,9 @@
 - **智能按需激活**：仅在包含 `CMakePresets.json` 的工作区激活。
 - **预设解析与过滤**：读取 configure presets，并过滤 `hidden: true` 的条目。
 - **源码到目标映射**：基于 CMake File API 返回的 target `sources` 建立 `<源码文件 -> 可执行目标>` 映射。
-- **侧边栏视图联动**：通过 TreeView 展示 Preset 与 Target，并与当前编辑器联动。
+- **侧边栏视图联动**：通过 TreeView 展示 Preset、Target 与 GTest，并与当前编辑器联动。
 - **原生任务与调试集成**：使用 VS Code Tasks API 执行 configure / build / run，并对接调试能力。
+- **GoogleTest 支持**：通过 `--gtest_list_tests` 发现用例，支持按目标/用例运行与过滤。
 - **可配置命令模板**：通过 `settings.json` 定制 configure、build、run 命令。
 
 ## 3. 架构分层设计
@@ -22,6 +23,7 @@
 - **TreeView Provider**
   - `Presets` 视图：展示可用 configure preset
   - `Targets` 视图：展示可执行目标及其源码文件
+  - `GTests` 视图：展示 GoogleTest 用例并按目标/用例运行
 - **Command Register**
   - 注册 `cmakerunner.buildTarget`、`cmakerunner.debugTarget` 等命令
 - **Editor Sync Listener**
@@ -73,10 +75,11 @@
 
 | 设置项键名 | 类型 | 默认值 | 作用 |
 | --- | --- | --- | --- |
-| `cmakerunner.tasks.buildCommandTemplate` | `string` | `cmake --build ${buildDir}${configurationArgument} --target ${target}` | 构建目标命令模板 |
-| `cmakerunner.tasks.presetConfigureCommandTemplate` | `string` | `cmake --preset ${preset} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON` | preset configure 命令模板 |
+| `cmakerunner.cmakePath` | `string` | `""` | CMake 可执行文件路径 |
+| `cmakerunner.tasks.presetConfigureCommandTemplate` | `string` | `cmake --preset ${preset}` | preset configure 命令模板 |
 | `cmakerunner.tasks.runCommandTemplate` | `string` | `${executableCommand}` | 运行目标命令模板 |
 | `cmakerunner.tasks.clearTerminalBeforeRun` | `boolean` | `true` | 执行前是否清理终端 |
+| `cmakerunner.debug.type` | `string` | `""` | Debug 配置类型 |
 
 ### 支持变量
 
@@ -102,8 +105,10 @@ src/
 │  ├─ outputLogger.ts
 │  ├─ presetProvider.ts
 │  ├─ taskExecutionEngine.ts
+│  ├─ windowsTooling.ts
 │  └─ workflowManager.ts
 └─ ui/
+   ├─ gtestTreeDataProvider.ts
    ├─ presetTreeDataProvider.ts
    └─ targetTreeDataProvider.ts
 ```
@@ -113,7 +118,7 @@ src/
 - `MappingEngine`：从 File API 读取可执行目标并建立源码映射
 - `TaskExecutionEngine`：执行任务
 - `WorkflowManager`：组织高层工作流
-- `PresetTreeDataProvider` / `TargetTreeDataProvider`：提供树视图数据
+- `PresetTreeDataProvider` / `TargetTreeDataProvider` / `GTestTreeDataProvider`：提供树视图数据
 
 ## 7. 当前限制与后续方向
 

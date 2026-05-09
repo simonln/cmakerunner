@@ -1,8 +1,12 @@
 # CMake Runner
 
+English documentation is the default in this file. For the Chinese version, see `doc/README.zh-CN.md`.
+
 `CMake Runner` is a VS Code extension for CMake-based C++ projects. It puts the common workflow of **select preset -> configure -> discover executable targets -> build -> run/debug** into a dedicated sidebar.
 
 It is designed for projects that already use `CMakePresets.json` and want a more direct way to work from the current source file back to the executable target that owns it.
+
+Implementation and architecture notes are available in `doc/architecture.zh-CN.md`.
 
 ## What It Does
 
@@ -11,7 +15,8 @@ It is designed for projects that already use `CMakePresets.json` and want a more
 - Resolves preset details from `CMakePresets.json` and `CMakeUserPresets.json`, including `include` and `inherits`
 - Associates configure presets with matching CMake build presets when available
 - Runs preset configure directly from VS Code tasks
-- After the configure is complete, the executable target is automatically discovered
+- Writes the CMake File API `codemodel-v2` query before configure
+- Discovers executable targets from `<binaryDir>/.cmake/api/v1/reply/`
 - Builds a source file to executable target mapping from the CMake codemodel
 - Reveals the matching source node when the active editor switches to a mapped file
 - Supports target filtering by target name, executable name, or source file name
@@ -21,10 +26,11 @@ It is designed for projects that already use `CMakePresets.json` and want a more
 
 ## Typical Workflow
 
-The extension revolves around two activity bar views:
+The extension revolves around three activity bar views:
 
 - `Presets`: choose the active CMake configure preset
 - `Targets`: inspect discovered executable targets and their source files
+- `GTests`: inspect and run GoogleTest cases by executable target
 
 Typical usage looks like this:
 
@@ -45,8 +51,9 @@ Before using the extension, make sure the workspace meets these conditions:
 3. A C/C++ debugging backend is available in VS Code
    - Windows: usually `cppvsdbg`
    - Linux/macOS: usually `cppdbg`
+4. You must successfully run configure at least once so the build directory contains CMake File API reply data
 
-By default, preset configure runs `cmake --preset ${preset}`. Target discovery and source mapping rely on the configure step completing successfully.
+By default, preset configure runs `cmake --preset ${preset}`. The extension writes `.cmake/api/v1/query/codemodel-v2` before configure. Target discovery and source mapping rely on the CMake File API reply.
 
 On Windows, CMake-based tasks are wrapped with `vcvarsall.bat` automatically when Visual C++ build tools can be located.
 
@@ -76,9 +83,13 @@ Open the `cmakerunner` activity bar item and choose a configure preset in the **
 
 ### 3. Configure and discover targets
 
-Run `Build` on the selected preset. 
+Run `Build` on the selected preset. The extension configures the project and reads metadata from:
 
-If configure succeeds, executable targets appear in **Targets**.
+```text
+<binaryDir>/.cmake/api/v1/reply/
+```
+
+If configure succeeds and CMake generated the File API reply, executable targets appear in **Targets**.
 
 ### 4. Build a target
 
@@ -95,7 +106,16 @@ You can invoke these actions directly on a target:
 
 By default, both actions build the target first.
 
-### 6. Filter targets
+### 6. Run one GoogleTest case
+
+Use the **GTests** view next to **Targets** to inspect GoogleTest cases by executable target.
+Expanding a target runs it with `--gtest_list_tests`. Selecting a discovered case runs the same
+target with `--gtest_filter=<suite.case>`.
+Use `Filter` to match target names, executable names, suite names, case names, or full
+`suite.case` filters. Use `Clear Filter` to remove the filter, and `Refresh` to clear
+cached discovery results.
+
+### 7. Filter targets
 
 Use `Filter` in the **Targets** view to open a target picker that is auto-filtered from the current file when possible. You can still fall back to manual text filtering to match:
 
@@ -105,15 +125,6 @@ Use `Filter` in the **Targets** view to open a target picker that is auto-filter
 - relative source path
 
 Use `Clear Filter` to remove the current filter.
-
-### 7. Run one GoogleTest case
-
-Use the **GTests** view next to **Targets** to inspect GoogleTest cases by executable target.
-Expanding a target runs it with `--gtest_list_tests`. Selecting a discovered case runs the same
-target with `--gtest_filter=<suite.case>`.
-Use `Filter` to match target names, executable names, suite names, case names, or full
-`suite.case` filters. Use `Clear Filter` to remove the filter, and `Refresh` to clear cached discovery results.
-
 
 ## Commands
 
@@ -210,10 +221,39 @@ It is still a good idea to enable `CMAKE_EXPORT_COMPILE_COMMANDS` in your preset
 
 ## Known Limitations
 
-- Target discovery and source mapping depend on the CMake File; if configure has not succeeded yet, the target list stays empty
+- Target discovery and source mapping depend on the CMake File API reply; if configure has not succeeded yet, the target list stays empty
 - The extension focuses on preset configure, target discovery, build, run, and debug; it is not a full CMake project manager
 - Debug configurations are created dynamically at runtime and depend on an available C/C++ debug backend
 - The extension operates on the first VS Code workspace folder
+
+## Development
+
+### Local development
+
+```bash
+npm install
+npm run compile
+```
+
+Run `F5` in VS Code to launch an Extension Development Host.
+
+### Tests
+
+```bash
+npm test
+```
+
+### Package VSIX
+
+```bash
+npx @vscode/vsce package --allow-missing-repository
+```
+
+## Documentation
+
+- English usage: `README.md`
+- Chinese usage: `doc/README.zh-CN.md`
+- Architecture notes: `doc/architecture.zh-CN.md`
 
 ## License
 

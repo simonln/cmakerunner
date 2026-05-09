@@ -23,10 +23,11 @@
 
 ## 典型工作流
 
-插件围绕两个活动栏视图工作：
+插件围绕三个活动栏视图工作：
 
 - `Presets`：选择当前使用的 CMake configure preset
 - `Targets`：查看当前发现的可执行目标及其源码文件
+- `GTests`：按可执行目标查看和运行 GoogleTest 用例
 
 典型流程如下：
 
@@ -49,7 +50,7 @@
    - Linux/macOS：通常为 `cppdbg`
 4. 至少需要先成功执行一次 configure，让构建目录中生成 CMake File API reply 数据
 
-默认情况下，preset configure 使用 `cmake --preset ${preset} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`，并且会在 configure 前写入 `.cmake/api/v1/query/codemodel-v2`。当前目标发现与源码映射主要依赖 CMake File API reply。
+默认情况下，preset configure 使用 `cmake --preset ${preset}`，并且会在 configure 前写入 `.cmake/api/v1/query/codemodel-v2`。当前目标发现与源码映射主要依赖 CMake File API reply。
 
 在 Windows 上，如果系统中可定位 Visual C++ 工具链，基于 `cmake` 的任务会自动通过 `vcvarsall.bat` 包装执行。
 
@@ -64,7 +65,7 @@
 ### 通过命令行安装
 
 ```bash
-code --install-extension cmakerunner-0.0.8.vsix
+code --install-extension cmakerunner-0.x.x.vsix
 ```
 
 ## 快速上手
@@ -129,7 +130,9 @@ code --install-extension cmakerunner-0.0.8.vsix
 - `cmakerunner.refresh`：重新加载 preset，并刷新当前 targets 视图
 - `cmakerunner.selectPreset`：选择当前 configure preset
 - `cmakerunner.buildPreset`：对选中的 preset 执行 configure 并刷新目标
+- `cmakerunner.rebuildPreset`：对选中的 preset 重新执行 configure 并刷新目标
 - `cmakerunner.buildTarget`：构建解析到的目标
+- `cmakerunner.buildTargetFromCurrentFile`：构建当前活动源文件映射到的目标
 - `cmakerunner.runTarget`：构建并运行解析到的目标
 - `cmakerunner.runGTestCase`：构建解析到的目标，选择并运行单个 GoogleTest 用例
 - `cmakerunner.debugTarget`：构建并调试解析到的目标
@@ -145,10 +148,12 @@ code --install-extension cmakerunner-0.0.8.vsix
 
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
-| `cmakerunner.tasks.presetConfigureCommandTemplate` | `cmake --preset ${preset} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON` | preset configure 使用的命令模板 |
+| `cmakerunner.cmakePath` | `""` | 可选的 `cmake` 可执行文件路径，适用于 CMake 随 Visual Studio 安装但未加入 `PATH` 的情况 |
+| `cmakerunner.tasks.presetConfigureCommandTemplate` | `cmake --preset ${preset}` | preset configure 使用的命令模板 |
 | `cmakerunner.tasks.buildCommandTemplate` | `cmake --build ${buildDir}${configurationArgument} --target ${target}` | 目标构建使用的命令模板 |
 | `cmakerunner.tasks.runCommandTemplate` | `${executableCommand}` | 目标运行使用的命令模板 |
 | `cmakerunner.tasks.clearTerminalBeforeRun` | `true` | build 或 run 前是否清理共享终端 |
+| `cmakerunner.debug.type` | `""` | 写入 `launch.json` 的 debug 配置类型。留空则使用平台默认值：Windows 上为 `cppvsdbg`，其他平台为 `cppdbg`/`lldb` |
 
 ### configure 模板支持的变量
 
@@ -174,7 +179,7 @@ code --install-extension cmakerunner-0.0.8.vsix
 
 ```json
 {
-  "cmakerunner.tasks.presetConfigureCommandTemplate": "cmake --preset ${preset} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+  "cmakerunner.tasks.presetConfigureCommandTemplate": "cmake --preset ${preset}",
   "cmakerunner.tasks.buildCommandTemplate": "cmake --build ${buildDir}${configurationArgument} --target ${target}",
   "cmakerunner.tasks.runCommandTemplate": "${executableCommand}",
   "cmakerunner.tasks.clearTerminalBeforeRun": true
