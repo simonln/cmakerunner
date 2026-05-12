@@ -213,11 +213,23 @@ export class WorkflowManager {
 
   public async listGTestCases(preset: PresetInfo, target: TargetInfo): Promise<GTestCaseInfo[] | undefined> {
     try {
+      const executableStat = await vscode.workspace.fs.stat(vscode.Uri.file(target.guessedExecutablePath));
+      if (executableStat.type !== vscode.FileType.File && executableStat.type !== vscode.FileType.SymbolicLink) {
+        this.logger.info(`Skipping GoogleTest discovery for ${target.name} because executable is not a file: ${target.guessedExecutablePath}`);
+        return [];
+      }
+
       const output = await execFileText(target.guessedExecutablePath, ['--gtest_list_tests'], preset.binaryDir);
       const testCases = parseGTestListOutput(output);
       this.logger.info(`Discovered ${testCases.length} GoogleTest case(s) in ${target.name}`);
       return testCases;
     } catch (error) {
+      const code = (error as vscode.FileSystemError | NodeJS.ErrnoException | undefined)?.code;
+      if (code === 'FileNotFound' || code === 'ENOENT') {
+        this.logger.info(`Skipping GoogleTest discovery for ${target.name} because executable does not exist: ${target.guessedExecutablePath}`);
+        return [];
+      }
+
       const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(`Unable to list GoogleTest cases for ${target.name}: ${message}`);
       void vscode.window.showErrorMessage(`Unable to list GoogleTest cases for ${target.displayName}. ${message}`);

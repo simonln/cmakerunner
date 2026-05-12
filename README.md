@@ -109,10 +109,11 @@ Use `Clear Filter` to remove the current filter.
 ### 7. Run one GoogleTest case
 
 Use the **GTests** view next to **Targets** to inspect GoogleTest cases by executable target.
-Expanding a target runs it with `--gtest_list_tests`. Selecting a discovered case runs the same
-target with `--gtest_filter=<suite.case>`.
+Only targets whose executable already exists on disk are shown. Expanding a target runs it with
+`--gtest_list_tests`. Selecting a discovered case runs the same target with `--gtest_filter=<suite.case>`.
 Use `Filter` to match target names, executable names, suite names, case names, or full
-`suite.case` filters. Use `Clear Filter` to remove the filter, and `Refresh` to clear cached discovery results.
+`suite.case` filters. Use `Clear Filter` to remove the filter, and `Refresh` to clear cached
+discovery results and re-check which executables have been generated.
 
 
 ## Commands

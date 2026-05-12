@@ -221,4 +221,27 @@ describe('extension commands', () => {
     await vscode.commands.executeCommand('cmakerunner.clearGTestFilter');
     assert.strictEqual(gtestsTreeView?.description, undefined);
   });
+
+  it('GTests view shows only targets whose executable exists', async () => {
+    const binDir = path.join(fixtureRoot, 'bin');
+    fs.mkdirSync(binDir, { recursive: true });
+    fs.writeFileSync(path.join(binDir, 'app'), '#!/bin/sh\nexit 0\n');
+    for (const missingExecutable of ['demo', 'helper']) {
+      try {
+        fs.unlinkSync(path.join(binDir, missingExecutable));
+      } catch {
+        // ignore
+      }
+    }
+
+    try {
+      await activateExtension();
+
+      const gtestsTreeView = mockedVscode.__mock.createdTreeViews.get('cmakerunner.gtests') as any;
+      const children = await gtestsTreeView.options.treeDataProvider.getChildren();
+      assert.deepStrictEqual(children.map((item: { label: string }) => item.label), ['app']);
+    } finally {
+      fs.unlinkSync(path.join(binDir, 'app'));
+    }
+  });
 });

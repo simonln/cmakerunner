@@ -219,7 +219,9 @@ describe('workflow manager', () => {
     };
 
     const originalExecFile = childProcess.execFile;
+    const originalStat = vscode.workspace.fs.stat;
     const originalShowQuickPick = vscode.window.showQuickPick;
+    (vscode.workspace.fs as any).stat = async () => ({ type: vscode.FileType.File });
     (childProcess as any).execFile = (_file: string, _args: string[], _options: unknown, callback: Function) => {
       callback(undefined, 'SuiteA.\n  TestOne\n  TestTwo\n', '');
       return {} as ChildProcess;
@@ -231,8 +233,29 @@ describe('workflow manager', () => {
       await manager.runGTestCase(preset, target, false);
       assert.strictEqual(runCommand, '/tmp/build/debug/app --gtest_filter=SuiteA.TestTwo');
     } finally {
+      (vscode.workspace.fs as any).stat = originalStat;
       (childProcess as any).execFile = originalExecFile;
       (vscode.window as any).showQuickPick = originalShowQuickPick;
+    }
+  });
+
+  it('listGTestCases returns empty without showing an error when the executable is missing', async () => {
+    const deps = createDeps();
+    let shown = '';
+    const originalShowErrorMessage = vscode.window.showErrorMessage;
+    (vscode.window as any).showErrorMessage = async (message: string) => {
+      shown = message;
+      return undefined;
+    };
+
+    try {
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      const result = await manager.listGTestCases(preset, target);
+      assert.deepStrictEqual(result, []);
+      assert.strictEqual(shown, '');
+      assert.ok(deps.calls.some((call) => call.includes('executable does not exist')));
+    } finally {
+      (vscode.window as any).showErrorMessage = originalShowErrorMessage;
     }
   });
 

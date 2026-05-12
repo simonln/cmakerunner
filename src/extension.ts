@@ -71,6 +71,27 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     await updateTargetViewState();
   };
 
+  const getGeneratedExecutableTargets = async (targets: TargetInfo[]): Promise<TargetInfo[]> => {
+    const generatedTargets: TargetInfo[] = [];
+
+    for (const target of targets) {
+      try {
+        const stat = await vscode.workspace.fs.stat(vscode.Uri.file(target.guessedExecutablePath));
+        if (stat.type === vscode.FileType.File || stat.type === vscode.FileType.SymbolicLink) {
+          generatedTargets.push(target);
+        }
+      } catch (error) {
+        logger.info(`Skipping GoogleTest target ${target.name} because executable does not exist: ${target.guessedExecutablePath}`);
+      }
+    }
+
+    return generatedTargets;
+  };
+
+  const updateGTestTargets = async (targets: TargetInfo[]): Promise<void> => {
+    gtestTreeDataProvider.setTargets(await getGeneratedExecutableTargets(targets));
+  };
+
   const updateGTestViewState = async (): Promise<void> => {
     const filterText = gtestTreeDataProvider.getFilterText();
     gtestsTreeView.description = filterText ? `Filter: ${filterText}` : undefined;
@@ -114,7 +135,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const targets = mappingEngine.getTargets();
     //   logger.info(`Resolved ${targets.length} mapped target(s) for preset ${currentPreset.name}`);
       targetTreeDataProvider.setTargets(targets, currentPreset.sourceDir, activeFile);
-      gtestTreeDataProvider.setTargets(targets);
+      await updateGTestTargets(targets);
       await updateTargetViewState();
       await updateGTestViewState();
     //   await revealActiveSource(activeFile);
@@ -123,7 +144,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     logger.warn('Skipping target update because no preset is selected');
     targetTreeDataProvider.setTargets([], workspaceRoot, activeFile);
-    gtestTreeDataProvider.setTargets([]);
+    await updateGTestTargets([]);
     await updateTargetViewState();
     await updateGTestViewState();
   };
@@ -345,6 +366,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
     vscode.commands.registerCommand('cmakerunner.refreshGTests', async () => {
       gtestTreeDataProvider.refresh();
+      await updateGTestTargets(mappingEngine.getTargets());
       await updateGTestViewState();
     }),
     vscode.commands.registerCommand('cmakerunner.filterGTests', async () => {
@@ -449,6 +471,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
 
       await workflowManager.buildTarget(preset, target);
+      await updateGTestTargets(mappingEngine.getTargets());
+      await updateGTestViewState();
     }),
     vscode.commands.registerCommand('cmakerunner.buildTargetFromCurrentFile', async () => {
       const preset = ensurePreset();
@@ -467,6 +491,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
 
       await workflowManager.buildTarget(preset, pick.target);
+      await updateGTestTargets(mappingEngine.getTargets());
+      await updateGTestViewState();
     }),
     vscode.commands.registerCommand('cmakerunner.runTarget', async (item?: TargetTreeItem | SourceTreeItem) => {
       const preset = ensurePreset();
