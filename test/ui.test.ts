@@ -451,6 +451,24 @@ describe('ui', () => {
       assert.strictEqual(await provider.getVisibleTargetCount(), 1);
     });
 
+    it('should expose gtest filter quick pick items for targets and cases', async () => {
+      const provider = new GTestTreeDataProvider(async () => [
+        { suite: 'MathTest', name: 'Adds', filter: 'MathTest.Adds' },
+      ]);
+      provider.setTargets([target]);
+
+      const items = await provider.getFilterItems();
+
+      assert.deepStrictEqual(items.map((item) => ({
+        type: item.type,
+        label: item.label,
+        filterText: item.filterText,
+      })), [
+        { type: 'target', label: 'Tests', filterText: 'Tests' },
+        { type: 'case', label: 'Adds', filterText: 'MathTest.Adds' },
+      ]);
+    });
+
     it('should clear gtest filter text', () => {
       const provider = new GTestTreeDataProvider(async () => []);
       provider.setFilterText('math');

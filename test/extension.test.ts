@@ -208,18 +208,49 @@ describe('extension commands', () => {
     assert.ok(mockedVscode.__mock.createdTreeViews.has('cmakerunner.gtests'));
   });
 
-  it('filterGTests applies and clears the gtest view filter', async () => {
+  it('filterGTests applies the selected gtest quick pick item and clears the filter', async () => {
+    const binDir = path.join(fixtureRoot, 'bin');
+    fs.mkdirSync(binDir, { recursive: true });
+    fs.writeFileSync(path.join(binDir, 'app'), '#!/bin/sh\nexit 0\n');
     await activateExtension();
 
+    const workflowModule = require('../src/services/workflowManager') as typeof import('../src/services/workflowManager');
+    const originalListGTestCases = workflowModule.WorkflowManager.prototype.listGTestCases;
+    workflowModule.WorkflowManager.prototype.listGTestCases = async () => [
+      { suite: 'MathTest', name: 'Adds', filter: 'MathTest.Adds' },
+    ];
+    (vscode.window as any).showQuickPick = async (items: readonly { detail?: string }[]) => (
+      items as Array<{ detail?: string }>
+    ).find((item) => item.detail === 'MathTest.Adds');
+
+    try {
+      await vscode.commands.executeCommand('cmakerunner.filterGTests');
+
+      const gtestsTreeView = mockedVscode.__mock.createdTreeViews.get('cmakerunner.gtests');
+      assert.ok(gtestsTreeView);
+      assert.strictEqual(gtestsTreeView?.description, 'Filter: MathTest.Adds');
+
+      await vscode.commands.executeCommand('cmakerunner.clearGTestFilter');
+      assert.strictEqual(gtestsTreeView?.description, undefined);
+    } finally {
+      workflowModule.WorkflowManager.prototype.listGTestCases = originalListGTestCases;
+      fs.unlinkSync(path.join(binDir, 'app'));
+    }
+  });
+
+  it('filterGTests supports manual filter input', async () => {
+    await activateExtension();
+
+    (vscode.window as any).showQuickPick = async (items: readonly { action?: string }[]) => (
+      items as Array<{ action?: string }>
+    ).find((item) => item.action === 'manualFilter');
     (vscode.window as any).showInputBox = async () => 'MathTest';
+
     await vscode.commands.executeCommand('cmakerunner.filterGTests');
 
     const gtestsTreeView = mockedVscode.__mock.createdTreeViews.get('cmakerunner.gtests');
     assert.ok(gtestsTreeView);
     assert.strictEqual(gtestsTreeView?.description, 'Filter: MathTest');
-
-    await vscode.commands.executeCommand('cmakerunner.clearGTestFilter');
-    assert.strictEqual(gtestsTreeView?.description, undefined);
   });
 
   it('GTests view shows only targets whose executable exists', async () => {

@@ -33,6 +33,14 @@ export class GTestCaseTreeItem extends vscode.TreeItem {
 
 type Node = GTestTargetTreeItem | GTestCaseTreeItem;
 
+export interface GTestFilterItem {
+  readonly type: 'target' | 'case';
+  readonly label: string;
+  readonly description?: string;
+  readonly detail?: string;
+  readonly filterText: string;
+}
+
 export class GTestTreeDataProvider implements vscode.TreeDataProvider<Node> {
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<Node | undefined | void>();
   private targets: TargetInfo[] = [];
@@ -69,6 +77,33 @@ export class GTestTreeDataProvider implements vscode.TreeDataProvider<Node> {
 
   public async getVisibleTargetCount(): Promise<number> {
     return (await this.getVisibleTargets()).length;
+  }
+
+  public async getFilterItems(): Promise<GTestFilterItem[]> {
+    const items: GTestFilterItem[] = [];
+
+    for (const target of this.targets) {
+      items.push({
+        type: 'target',
+        label: target.displayName,
+        description: path.basename(target.guessedExecutablePath),
+        detail: target.guessedExecutablePath,
+        filterText: target.displayName,
+      });
+
+      const testCases = await this.getTestCases(target);
+      for (const testCase of testCases) {
+        items.push({
+          type: 'case',
+          label: testCase.name,
+          description: `${testCase.suite} - ${target.displayName}`,
+          detail: testCase.filter,
+          filterText: testCase.filter,
+        });
+      }
+    }
+
+    return items;
   }
 
   public getTreeItem(element: Node): vscode.TreeItem {

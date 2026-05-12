@@ -17,6 +17,11 @@ interface TargetQuickPickItem extends vscode.QuickPickItem {
   readonly action?: 'customTextFilter';
 }
 
+interface GTestQuickPickItem extends vscode.QuickPickItem {
+  readonly filterText?: string;
+  readonly action?: 'manualFilter';
+}
+
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
   if (!workspaceFolder) {
@@ -370,16 +375,48 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await updateGTestViewState();
     }),
     vscode.commands.registerCommand('cmakerunner.filterGTests', async () => {
-      const filterText = await vscode.window.showInputBox({
-        prompt: 'Filter GoogleTest targets or cases',
-        placeHolder: 'Example: gtest, MathTest, Adds, MathTest.Adds',
-        value: gtestTreeDataProvider.getFilterText(),
-      });
-      if (filterText === undefined) {
+      const filterItems = await gtestTreeDataProvider.getFilterItems();
+      const pick = await vscode.window.showQuickPick<GTestQuickPickItem>(
+        [
+          ...filterItems.map((item) => ({
+            label: item.type === 'case' ? item.label : item.label,
+            description: item.description,
+            detail: item.detail,
+            filterText: item.filterText,
+          })),
+          {
+            label: '$(edit) Manual filter...',
+            description: 'Type a custom GoogleTest filter',
+            detail: 'Example: gtest, MathTest, Adds, MathTest.Adds',
+            action: 'manualFilter' as const,
+          },
+        ],
+        {
+          prompt: 'Filter GoogleTest targets or cases',
+          placeHolder: 'Select a target or test case',
+          matchOnDescription: true,
+          matchOnDetail: true,
+        },
+      );
+      if (!pick) {
         return;
       }
 
-      await applyGTestFilter(filterText);
+      if (pick.action === 'manualFilter') {
+        const filterText = await vscode.window.showInputBox({
+          prompt: 'Filter GoogleTest targets or cases',
+          placeHolder: 'Example: gtest, MathTest, Adds, MathTest.Adds',
+          value: gtestTreeDataProvider.getFilterText(),
+        });
+        if (filterText === undefined) {
+          return;
+        }
+
+        await applyGTestFilter(filterText);
+        return;
+      }
+
+      await applyGTestFilter(pick.filterText ?? pick.label);
     }),
     vscode.commands.registerCommand('cmakerunner.clearGTestFilter', async () => {
       await applyGTestFilter('');
