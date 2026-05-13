@@ -6,7 +6,7 @@
 npm install            # Install dependencies
 npm run compile        # Compile TypeScript to out/
 npm run watch         # Watch mode for development
-npx @vscode/vsce package --allow-missing-repository   # Build VSIX
+npm run package:vsix    # Build VSIX to dist/
 ```
 
 - Press **F5** in VS Code to debug the extension in Extension Development Host

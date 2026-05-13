@@ -246,7 +246,7 @@ npm test
 ### Package VSIX
 
 ```bash
-npx @vscode/vsce package --allow-missing-repository
+npm run package:vsix
 ```
 
 ## Documentation

@@ -1,6 +1,7 @@
 # dir
 node_modules/
 out/
+dist/
 *.vsix
 *.tsbuildinfo
 doc/*.json

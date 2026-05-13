@@ -29,7 +29,7 @@
         "clean": "node -e \"require('fs').rmSync('out', { recursive: true, force: true })\"",
         "compile": "npm run clean && node ./node_modules/typescript/bin/tsc -p ./",
         "watch": "node ./node_modules/typescript/bin/tsc -watch -p ./",
-        "package:vsix": "npx @vscode/vsce package --allow-missing-repository",
+        "package:vsix": "node -e \"require('fs').mkdirSync('dist', { recursive: true })\" && npx @vscode/vsce package --allow-missing-repository --out ./dist",
         "test": "npm run compile && node test/run-unit.js",
         "test:watch": "npm run compile && node -r ./test/vscode-mock.js ./node_modules/mocha/bin/mocha --timeout 10000 'out/test/**/*.test.js' --watch"
     },

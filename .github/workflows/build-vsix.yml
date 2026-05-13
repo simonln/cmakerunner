@@ -44,5 +44,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cmakerunner-vsix
-          path: "*.vsix"
+          path: "dist/*.vsix"
           if-no-files-found: error
