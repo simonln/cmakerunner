@@ -102,13 +102,18 @@ export class TaskExecutionEngine {
 
   private createShellExecutionSpec(command: string): ShellExecutionSpec {
     const options: vscode.ShellExecutionOptions = { cwd: this.workspaceRoot };
-    if (!shouldWrapWithVcvarsall(command) || !this.vcvarsallPath) {
+    if (!isWindowsCmakeCommand(command)) {
+      return { command, options };
+    }
+
+    options.executable = process.env.comspec ?? 'cmd.exe';
+    options.shellArgs = ['/d', '/s', '/c'];
+
+    if (!this.vcvarsallPath) {
       return { command, options };
     }
 
     const wrappedCommand = `call "${this.vcvarsallPath}" ${getVcvarsallArchitecture()} >nul 2>&1 && ${command}`;
-    options.executable = process.env.comspec ?? 'cmd.exe';
-    options.shellArgs = ['/d', '/s', '/c'];
     this.logger.info(`use vcvarsall, wrappedCommand: ${wrappedCommand}`);
     return {
       command: wrappedCommand,
@@ -131,7 +136,7 @@ export class TaskExecutionEngine {
   }
 }
 
-function shouldWrapWithVcvarsall(command: string): boolean {
+function isWindowsCmakeCommand(command: string): boolean {
   return process.platform === 'win32' && /^\s*cmake(?:\.exe)?(?:\s|$)/i.test(command);
 }
 

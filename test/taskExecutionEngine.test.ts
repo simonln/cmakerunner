@@ -166,4 +166,50 @@ describe('task execution engine', () => {
       (vscode.tasks as any).onDidEndTask = originalOnDidEndTask;
     }
   });
+
+  it('runs cmake build commands through cmd.exe on Windows without vcvarsall', async () => {
+    const restorePlatform = setPlatform('win32');
+    const originalExecuteTask = vscode.tasks.executeTask;
+    const originalOnDidEndTaskProcess = vscode.tasks.onDidEndTaskProcess;
+    const originalOnDidEndTask = vscode.tasks.onDidEndTask;
+    const originalVsInstallDir = process.env.VSINSTALLDIR;
+
+    delete process.env.VSINSTALLDIR;
+
+    const execution = { id: 'plain-cmake-build' };
+    let capturedTask: vscode.Task | undefined;
+    let processListener: ((event: { execution: unknown; exitCode: number | undefined }) => void) | undefined;
+
+    (vscode.tasks as any).executeTask = async (task: vscode.Task) => {
+      capturedTask = task;
+      return execution;
+    };
+    (vscode.tasks as any).onDidEndTaskProcess = (listener: typeof processListener) => {
+      processListener = listener;
+      return { dispose: () => {} };
+    };
+    (vscode.tasks as any).onDidEndTask = () => ({ dispose: () => {} });
+
+    try {
+      const engine = createEngine();
+      const resultPromise = engine.executeBuild('cmake --build build --target app', 'Build app');
+      await Promise.resolve();
+      processListener?.({ execution, exitCode: 0 });
+      await resultPromise;
+
+      assert.strictEqual((capturedTask?.execution as any)?.options?.executable, process.env.comspec ?? 'cmd.exe');
+      assert.deepStrictEqual((capturedTask?.execution as any)?.options?.shellArgs, ['/d', '/s', '/c']);
+      assert.strictEqual((capturedTask?.execution as any)?.command, 'cmake --build build --target app');
+    } finally {
+      if (originalVsInstallDir === undefined) {
+        delete process.env.VSINSTALLDIR;
+      } else {
+        process.env.VSINSTALLDIR = originalVsInstallDir;
+      }
+      restorePlatform();
+      (vscode.tasks as any).executeTask = originalExecuteTask;
+      (vscode.tasks as any).onDidEndTaskProcess = originalOnDidEndTaskProcess;
+      (vscode.tasks as any).onDidEndTask = originalOnDidEndTask;
+    }
+  });
 });
