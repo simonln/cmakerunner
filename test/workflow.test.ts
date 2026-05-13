@@ -236,6 +236,90 @@ describe('workflow manager', () => {
     }
   });
 
+  it('runGTestCase shows a warning and does not run when no cases are discovered', async () => {
+    const deps = createDeps();
+    let warned = '';
+    let runCount = 0;
+    deps.taskExecutionEngine.executeRun = async () => {
+      runCount += 1;
+      return { exitCode: 0 };
+    };
+
+    const originalExecFile = childProcess.execFile;
+    const originalShowWarningMessage = vscode.window.showWarningMessage;
+    (childProcess as any).execFile = (_file: string, _args: string[], _options: unknown, callback: Function) => {
+      callback(undefined, '', '');
+      return {} as ChildProcess;
+    };
+    (vscode.window as any).showWarningMessage = async (message: string) => {
+      warned = message;
+      return undefined;
+    };
+
+    try {
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      await manager.runGTestCase(preset, target, false);
+      assert.ok(warned.includes('No GoogleTest cases were found'));
+      assert.strictEqual(runCount, 0);
+    } finally {
+      (childProcess as any).execFile = originalExecFile;
+      (vscode.window as any).showWarningMessage = originalShowWarningMessage;
+    }
+  });
+
+  it('runGTestCase stops when the user cancels case selection', async () => {
+    const deps = createDeps();
+    let runCount = 0;
+    deps.taskExecutionEngine.executeRun = async () => {
+      runCount += 1;
+      return { exitCode: 0 };
+    };
+
+    const originalExecFile = childProcess.execFile;
+    const originalShowQuickPick = vscode.window.showQuickPick;
+    (childProcess as any).execFile = (_file: string, _args: string[], _options: unknown, callback: Function) => {
+      callback(undefined, 'SuiteA.\n  TestOne\n', '');
+      return {} as ChildProcess;
+    };
+    (vscode.window as any).showQuickPick = async () => undefined;
+
+    try {
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      await manager.runGTestCase(preset, target, false);
+      assert.strictEqual(runCount, 0);
+    } finally {
+      (childProcess as any).execFile = originalExecFile;
+      (vscode.window as any).showQuickPick = originalShowQuickPick;
+    }
+  });
+
+  it('listGTestCases shows an error when gtest discovery fails', async () => {
+    const deps = createDeps();
+    let shown = '';
+
+    const originalExecFile = childProcess.execFile;
+    const originalShowErrorMessage = vscode.window.showErrorMessage;
+    (childProcess as any).execFile = (_file: string, _args: string[], _options: unknown, callback: Function) => {
+      callback(new Error('spawn failed'), '', 'permission denied');
+      return {} as ChildProcess;
+    };
+    (vscode.window as any).showErrorMessage = async (message: string) => {
+      shown = message;
+      return undefined;
+    };
+
+    try {
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      const result = await manager.listGTestCases(preset, target);
+      assert.strictEqual(result, undefined);
+      assert.ok(shown.includes('Unable to list GoogleTest cases'));
+      assert.ok(shown.includes('permission denied'));
+    } finally {
+      (childProcess as any).execFile = originalExecFile;
+      (vscode.window as any).showErrorMessage = originalShowErrorMessage;
+    }
+  });
+
   it('debugTarget opens Run and Debug when requested after writing launch configuration', async () => {
     const deps = createDeps();
     let executedCommand = '';
@@ -263,6 +347,48 @@ describe('workflow manager', () => {
     } finally {
       (vscode.window as any).showInformationMessage = originalShowInformationMessage;
       (vscode.commands as any).executeCommand = originalExecuteCommand;
+      (vscode.workspace as any).getConfiguration = originalGetConfiguration;
+    }
+  });
+
+  it('debugTarget keeps existing launch configuration when overwrite is not confirmed', async () => {
+    const deps = createDeps();
+    let updated = false;
+    const originalShowWarningMessage = vscode.window.showWarningMessage;
+    const originalGetConfiguration = vscode.workspace.getConfiguration;
+    const existingConfigurations = [{
+      name: 'Debug App',
+      type: 'cppdbg',
+      request: 'launch',
+      program: '/tmp/build/debug/app',
+      cwd: '/tmp/build/debug',
+      args: [],
+    }];
+
+    (vscode.window as any).showWarningMessage = async (message: string) => {
+      if (message.includes('launch.json already contains')) {
+        return undefined;
+      }
+      return undefined;
+    };
+    (vscode.workspace as any).getConfiguration = (section?: string, scope?: vscode.Uri) => {
+      if (section === 'launch' && scope) {
+        return {
+          get: () => existingConfigurations,
+          update: async () => {
+            updated = true;
+          },
+        };
+      }
+      return originalGetConfiguration(section as never, scope);
+    };
+
+    try {
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      await manager.debugTarget(preset, target);
+      assert.strictEqual(updated, false);
+    } finally {
+      (vscode.window as any).showWarningMessage = originalShowWarningMessage;
       (vscode.workspace as any).getConfiguration = originalGetConfiguration;
     }
   });

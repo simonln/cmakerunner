@@ -12,6 +12,8 @@ describe('integration', () => {
   const mappingWorkspaceDir = path.join(__dirname, 'fixtures', 'workspace-mapping');
   const mappingEmptyWorkspaceDir = path.join(__dirname, 'fixtures', 'workspace-mapping-empty');
   const mappingNoCodemodelWorkspaceDir = path.join(__dirname, 'fixtures', 'workspace-mapping-no-codemodel');
+  const mappingMultiConfigWorkspaceDir = path.join(__dirname, 'fixtures', 'workspace-mapping-multi-config');
+  const invalidPresetWorkspaceDir = path.join(__dirname, 'fixtures', 'workspace-invalid-presets');
   const mockOutputChannel = {
     name: 'test',
     append: () => {},
@@ -147,6 +149,52 @@ describe('integration', () => {
         objects: [{ kind: 'cache', jsonFile: 'cache.json' }],
       }, null, 2),
     );
+
+    const multiConfigReplyDir = path.join(mappingMultiConfigWorkspaceDir, 'build', 'debug', '.cmake', 'api', 'v1', 'reply');
+    fs.mkdirSync(multiConfigReplyDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(multiConfigReplyDir, 'index-001.json'),
+      JSON.stringify({
+        reply: {
+          codemodel: { kind: 'codemodel', jsonFile: 'codemodel-v2.json' },
+        },
+      }, null, 2),
+    );
+    fs.writeFileSync(
+      path.join(multiConfigReplyDir, 'codemodel-v2.json'),
+      JSON.stringify({
+        configurations: [
+          {
+            name: 'Debug',
+            targets: [{ name: 'app', id: 'app-debug', jsonFile: 'target-app-debug.json' }],
+          },
+          {
+            name: 'Release',
+            targets: [{ name: 'app', id: 'app-release', jsonFile: 'target-app-release.json' }],
+          },
+        ],
+      }, null, 2),
+    );
+    fs.writeFileSync(
+      path.join(multiConfigReplyDir, 'target-app-debug.json'),
+      JSON.stringify({
+        name: 'app',
+        type: 'EXECUTABLE',
+        sources: [{ path: path.join(mappingMultiConfigWorkspaceDir, 'src', 'main.cpp') }],
+      }, null, 2),
+    );
+    fs.writeFileSync(
+      path.join(multiConfigReplyDir, 'target-app-release.json'),
+      JSON.stringify({
+        name: 'app',
+        type: 'EXECUTABLE',
+        artifacts: [{ path: path.join(mappingMultiConfigWorkspaceDir, 'bin', 'release', 'app') }],
+        sources: [{ path: path.join(mappingMultiConfigWorkspaceDir, 'src', 'main.cpp') }],
+      }, null, 2),
+    );
+
+    fs.mkdirSync(invalidPresetWorkspaceDir, { recursive: true });
+    fs.writeFileSync(path.join(invalidPresetWorkspaceDir, 'CMakePresets.json'), '{ invalid json');
   });
 
   describe('PresetProvider', () => {
@@ -182,6 +230,12 @@ describe('integration', () => {
       assert.strictEqual(devPreset.buildPresetName, 'dev-build');
       assert.strictEqual(devPreset.configuration, 'Debug');
       assert.strictEqual(devPreset.description, 'Shared base');
+    });
+
+    it('should return an empty list when preset files are invalid and CMake listing fails', async () => {
+      const provider = new PresetProvider(invalidPresetWorkspaceDir, logger);
+      const presets = await provider.loadPresets();
+      assert.deepStrictEqual(presets, []);
     });
   });
 
@@ -255,6 +309,26 @@ describe('integration', () => {
         sourceDir: mappingNoCodemodelWorkspaceDir,
       });
       assert.deepStrictEqual(engine.getTargets(), []);
+    });
+
+    it('should build per-configuration executable targets and map one source to multiple targets', async () => {
+      const engine = new MappingEngine(logger);
+      const sourcePath = path.join(mappingMultiConfigWorkspaceDir, 'src', 'main.cpp');
+      await engine.rebuild({
+        name: 'debug',
+        displayName: 'Debug',
+        binaryDir: path.join(mappingMultiConfigWorkspaceDir, 'build', 'debug'),
+        sourceDir: mappingMultiConfigWorkspaceDir,
+      });
+
+      const targets = engine.getTargets();
+      const mappedTargets = engine.findTargetsBySource(sourcePath);
+      const defaultExecutableName = process.platform === 'win32' ? 'app.exe' : 'app';
+      assert.strictEqual(targets.length, 2);
+      assert.deepStrictEqual(targets.map((target) => target.displayName), ['app [Debug]', 'app [Release]']);
+      assert.deepStrictEqual(mappedTargets.map((target) => target.id), ['app::debug', 'app::release']);
+      assert.ok(mappedTargets.some((target) => target.guessedExecutablePath.endsWith(path.join('build', 'debug', defaultExecutableName))));
+      assert.ok(mappedTargets.some((target) => target.guessedExecutablePath.endsWith(path.join('bin', 'release', 'app'))));
     });
   });
 });
