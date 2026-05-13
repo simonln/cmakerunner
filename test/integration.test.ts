@@ -324,9 +324,12 @@ describe('integration', () => {
       const targets = engine.getTargets();
       const mappedTargets = engine.findTargetsBySource(sourcePath);
       const defaultExecutableName = process.platform === 'win32' ? 'app.exe' : 'app';
+      const expectedTargetIds = process.platform === 'win32'
+        ? ['app::debug', 'app::release']
+        : ['app::Debug', 'app::Release'];
       assert.strictEqual(targets.length, 2);
       assert.deepStrictEqual(targets.map((target) => target.displayName), ['app [Debug]', 'app [Release]']);
-      assert.deepStrictEqual(mappedTargets.map((target) => target.id), ['app::debug', 'app::release']);
+      assert.deepStrictEqual(mappedTargets.map((target) => target.id), expectedTargetIds);
       assert.ok(mappedTargets.some((target) => target.guessedExecutablePath.endsWith(path.join('build', 'debug', defaultExecutableName))));
       assert.ok(mappedTargets.some((target) => target.guessedExecutablePath.endsWith(path.join('bin', 'release', 'app'))));
     });
