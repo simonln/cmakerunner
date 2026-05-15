@@ -221,4 +221,30 @@ describe('extension commands', () => {
     await vscode.commands.executeCommand('cmakerunner.clearGTestFilter');
     assert.strictEqual(gtestsTreeView?.description, undefined);
   });
+
+  it('clears the gtest filter when switching to a different target', async () => {
+    await activateExtension();
+
+    const workflowModule = require('../src/services/workflowManager') as typeof import('../src/services/workflowManager');
+    const originalBuildTarget = workflowModule.WorkflowManager.prototype.buildTarget;
+    workflowModule.WorkflowManager.prototype.buildTarget = async () => {};
+
+    (vscode.window as any).showInputBox = async () => 'MathTest';
+    await vscode.commands.executeCommand('cmakerunner.filterGTests');
+
+    (vscode.window as any).showQuickPick = async (items: readonly { label: string }[]) => {
+      const quickPickItems = items as Array<{ label: string }>;
+      return quickPickItems.find((item) => item.label === 'demo');
+    };
+
+    try {
+      await vscode.commands.executeCommand('cmakerunner.buildTargetFromCurrentFile');
+    } finally {
+      workflowModule.WorkflowManager.prototype.buildTarget = originalBuildTarget;
+    }
+
+    const gtestsTreeView = mockedVscode.__mock.createdTreeViews.get('cmakerunner.gtests');
+    assert.ok(gtestsTreeView);
+    assert.strictEqual(gtestsTreeView?.description, undefined);
+  });
 });

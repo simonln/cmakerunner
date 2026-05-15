@@ -68,7 +68,8 @@ describe('task execution engine', () => {
       assert.deepStrictEqual(capturedTask?.problemMatchers, ['$gcc', '$msCompile']);
       assert.strictEqual(capturedTask?.presentationOptions?.reveal, vscode.TaskRevealKind.Never);
       assert.strictEqual(capturedTask?.presentationOptions?.clear, true);
-      assert.strictEqual((capturedTask?.execution as any)?.command, 'cmake --build build --target app');
+      assert.strictEqual((capturedTask?.execution as any)?.command, '/bin/sh');
+      assert.deepStrictEqual((capturedTask?.execution as any)?.args, ['-c', "trap 'exit 130' INT; cmake --build build --target app"]);
       assert.ok(taskListener);
     } finally {
       (vscode.tasks as any).executeTask = originalExecuteTask;
@@ -207,6 +208,42 @@ describe('task execution engine', () => {
         process.env.VSINSTALLDIR = originalVsInstallDir;
       }
       restorePlatform();
+      (vscode.tasks as any).executeTask = originalExecuteTask;
+      (vscode.tasks as any).onDidEndTaskProcess = originalOnDidEndTaskProcess;
+      (vscode.tasks as any).onDidEndTask = originalOnDidEndTask;
+    }
+  });
+
+  it('wraps non-Windows cmake build commands to preserve Ctrl+C exit status', async () => {
+    const originalExecuteTask = vscode.tasks.executeTask;
+    const originalOnDidEndTaskProcess = vscode.tasks.onDidEndTaskProcess;
+    const originalOnDidEndTask = vscode.tasks.onDidEndTask;
+
+    const execution = { id: 'linux-build' };
+    let capturedTask: vscode.Task | undefined;
+    let processListener: ((event: { execution: unknown; exitCode: number | undefined }) => void) | undefined;
+
+    (vscode.tasks as any).executeTask = async (task: vscode.Task) => {
+      capturedTask = task;
+      return execution;
+    };
+    (vscode.tasks as any).onDidEndTaskProcess = (listener: typeof processListener) => {
+      processListener = listener;
+      return { dispose: () => {} };
+    };
+    (vscode.tasks as any).onDidEndTask = () => ({ dispose: () => {} });
+
+    try {
+      const engine = createEngine();
+      const resultPromise = engine.executeBuild('cmake --build build --target app', 'Build app');
+      await Promise.resolve();
+      processListener?.({ execution, exitCode: 130 });
+      const result = await resultPromise;
+
+      assert.strictEqual(result.exitCode, 130);
+      assert.strictEqual((capturedTask?.execution as any)?.command, '/bin/sh');
+      assert.deepStrictEqual((capturedTask?.execution as any)?.args, ['-c', "trap 'exit 130' INT; cmake --build build --target app"]);
+    } finally {
       (vscode.tasks as any).executeTask = originalExecuteTask;
       (vscode.tasks as any).onDidEndTaskProcess = originalOnDidEndTaskProcess;
       (vscode.tasks as any).onDidEndTask = originalOnDidEndTask;

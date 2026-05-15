@@ -375,6 +375,7 @@ describe('ui', () => {
     it('should expose gtest targets as root items', async () => {
       const provider = new GTestTreeDataProvider(async () => []);
       provider.setTargets([target]);
+      provider.setSelectedTarget(target, true);
 
       const children = await provider.getChildren();
       assert.strictEqual(children.length, 1);
@@ -387,6 +388,7 @@ describe('ui', () => {
         { suite: 'MathTest', name: 'Adds', filter: 'MathTest.Adds' },
       ]);
       provider.setTargets([target]);
+      provider.setSelectedTarget(target, true);
 
       const [targetItem] = await provider.getChildren();
       const cases = await provider.getChildren(targetItem);
@@ -404,6 +406,7 @@ describe('ui', () => {
         return [{ suite: 'MathTest', name: `Case${discoverCount}`, filter: `MathTest.Case${discoverCount}` }];
       });
       provider.setTargets([target]);
+      provider.setSelectedTarget(target, true);
 
       const [targetItem] = await provider.getChildren();
       await provider.getChildren(targetItem);
@@ -427,6 +430,7 @@ describe('ui', () => {
           guessedExecutablePath: '/build/app',
         },
       ]);
+      provider.setSelectedTarget(target, true);
 
       provider.setFilterText('tests');
       const children = await provider.getChildren();
@@ -441,6 +445,7 @@ describe('ui', () => {
         { suite: 'StringTest', name: 'Splits', filter: 'StringTest.Splits' },
       ]);
       provider.setTargets([target]);
+      provider.setSelectedTarget(target, true);
 
       provider.setFilterText('splits');
       const [targetItem] = await provider.getChildren();
@@ -457,6 +462,18 @@ describe('ui', () => {
       assert.strictEqual(provider.getFilterText(), 'math');
       provider.setFilterText('');
       assert.strictEqual(provider.getFilterText(), '');
+    });
+
+    it('should stay empty until a built target is selected', async () => {
+      const provider = new GTestTreeDataProvider(async () => []);
+      provider.setTargets([target]);
+
+      assert.strictEqual(provider.getMessage(), 'Select a target and build it to view GoogleTest cases.');
+      assert.strictEqual((await provider.getChildren()).length, 0);
+
+      provider.setSelectedTarget(target, false);
+      assert.strictEqual(provider.getMessage(), 'Build the selected target successfully to view GoogleTest cases.');
+      assert.strictEqual((await provider.getChildren()).length, 0);
     });
   });
 });

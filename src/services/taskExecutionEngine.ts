@@ -8,6 +8,8 @@ import { findVsWhereMatchSync } from './windowsTooling';
 
 interface ShellExecutionSpec {
   readonly command?: string;
+  readonly args?: string[];
+  readonly executable?: string;
   readonly options: vscode.ShellExecutionOptions;
 }
 
@@ -97,11 +99,23 @@ export class TaskExecutionEngine {
 
   private createShellExecution(command: string): vscode.ShellExecution {
     const spec = this.createShellExecutionSpec(command);
+    if (spec.executable) {
+      return new vscode.ShellExecution(spec.executable, spec.args ?? [], spec.options);
+    }
+
     return new vscode.ShellExecution(spec.command ?? command, spec.options);
   }
 
   private createShellExecutionSpec(command: string): ShellExecutionSpec {
     const options: vscode.ShellExecutionOptions = { cwd: this.workspaceRoot };
+    if (process.platform !== 'win32' && /^\s*cmake(?:\s|$)/.test(command)) {
+      return {
+        executable: '/bin/sh',
+        args: ['-c', wrapPosixBuildCommand(command)],
+        options,
+      };
+    }
+
     if (!isWindowsCmakeCommand(command)) {
       return { command, options };
     }
@@ -172,4 +186,9 @@ function getVcvarsallArchitecture(): string {
     default:
       return 'x64';
   }
+}
+
+function wrapPosixBuildCommand(command: string): string {
+  const escapedCommand = command.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
+  return `trap "exit 130" INT; ${escapedCommand}`;
 }

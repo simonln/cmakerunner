@@ -39,6 +39,8 @@ export class GTestTreeDataProvider implements vscode.TreeDataProvider<Node> {
   private targetItems = new Map<string, GTestTargetTreeItem>();
   private testCasesByTargetId = new Map<string, GTestCaseInfo[]>();
   private filterText = '';
+  private selectedTargetId?: string;
+  private selectedTargetBuilt = false;
 
   public readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
 
@@ -48,8 +50,24 @@ export class GTestTreeDataProvider implements vscode.TreeDataProvider<Node> {
 
   public setTargets(targets: TargetInfo[]): void {
     this.targets = targets;
+    if (this.selectedTargetId && !targets.some((target) => target.id === this.selectedTargetId)) {
+      this.selectedTargetId = undefined;
+      this.selectedTargetBuilt = false;
+    }
     this.testCasesByTargetId.clear();
     this.targetItems = new Map(targets.map((target) => [target.id, new GTestTargetTreeItem(target)]));
+    this.onDidChangeTreeDataEmitter.fire();
+  }
+
+  public setSelectedTarget(target: TargetInfo | undefined, isBuilt: boolean): void {
+    const nextTargetId = target?.id;
+    const selectionChanged = this.selectedTargetId !== nextTargetId || this.selectedTargetBuilt !== isBuilt;
+    this.selectedTargetId = nextTargetId;
+    this.selectedTargetBuilt = !!target && isBuilt;
+    if (!selectionChanged) {
+      return;
+    }
+
     this.onDidChangeTreeDataEmitter.fire();
   }
 
@@ -69,6 +87,18 @@ export class GTestTreeDataProvider implements vscode.TreeDataProvider<Node> {
 
   public async getVisibleTargetCount(): Promise<number> {
     return (await this.getVisibleTargets()).length;
+  }
+
+  public getMessage(): string | undefined {
+    if (!this.selectedTargetId) {
+      return 'Select a target and build it to view GoogleTest cases.';
+    }
+
+    if (!this.selectedTargetBuilt) {
+      return 'Build the selected target successfully to view GoogleTest cases.';
+    }
+
+    return undefined;
   }
 
   public getTreeItem(element: Node): vscode.TreeItem {
@@ -110,13 +140,18 @@ export class GTestTreeDataProvider implements vscode.TreeDataProvider<Node> {
   }
 
   private async getVisibleTargets(): Promise<TargetInfo[]> {
+    const selectedTarget = this.getSelectedTarget();
+    if (!selectedTarget || !this.selectedTargetBuilt) {
+      return [];
+    }
+
     const query = this.normalizeFilterQuery(this.filterText);
     if (!query) {
-      return this.targets;
+      return [selectedTarget];
     }
 
     const visibleTargets: TargetInfo[] = [];
-    for (const target of this.targets) {
+    for (const target of [selectedTarget]) {
       if (this.matchesTarget(target, query)) {
         visibleTargets.push(target);
         continue;
@@ -129,6 +164,14 @@ export class GTestTreeDataProvider implements vscode.TreeDataProvider<Node> {
     }
 
     return visibleTargets;
+  }
+
+  private getSelectedTarget(): TargetInfo | undefined {
+    if (!this.selectedTargetId) {
+      return undefined;
+    }
+
+    return this.targets.find((target) => target.id === this.selectedTargetId);
   }
 
   private getVisibleTestCases(target: TargetInfo, testCases: GTestCaseInfo[]): GTestCaseInfo[] {

@@ -161,6 +161,33 @@ describe('workflow manager', () => {
     }
   });
 
+  it('buildTarget does not report success when the build is cancelled', async () => {
+    const deps = createDeps();
+    deps.taskExecutionEngine.executeBuild = async () => ({ exitCode: 130 });
+    let infoCount = 0;
+    let shown = '';
+    const originalShowInformationMessage = vscode.window.showInformationMessage;
+    const originalShowErrorMessage = vscode.window.showErrorMessage;
+    (vscode.window as any).showInformationMessage = async () => {
+      infoCount += 1;
+      return undefined;
+    };
+    (vscode.window as any).showErrorMessage = async (message: string) => {
+      shown = message;
+      return undefined;
+    };
+    try {
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      await manager.buildTarget(preset, target);
+      assert.strictEqual(infoCount, 0);
+      assert.ok(shown.includes('Build failed'));
+      assert.ok(shown.includes('130'));
+    } finally {
+      (vscode.window as any).showInformationMessage = originalShowInformationMessage;
+      (vscode.window as any).showErrorMessage = originalShowErrorMessage;
+    }
+  });
+
   it('debugTarget shows an error when pre-debug build fails', async () => {
     const deps = createDeps();
     deps.taskExecutionEngine.executeBuild = async () => ({ exitCode: 3 });
@@ -290,6 +317,29 @@ describe('workflow manager', () => {
     } finally {
       (childProcess as any).execFile = originalExecFile;
       (vscode.window as any).showQuickPick = originalShowQuickPick;
+    }
+  });
+
+  it('runAllGTestCases runs the target executable without a gtest filter', async () => {
+    const deps = createDeps();
+    let runCommand = '';
+    deps.taskExecutionEngine.executeRun = async (command?: string) => {
+      runCommand = command ?? '';
+      return { exitCode: 0 };
+    };
+
+    const originalExecFile = childProcess.execFile;
+    (childProcess as any).execFile = (_file: string, _args: string[], _options: unknown, callback: Function) => {
+      callback(undefined, 'SuiteA.\n  TestOne\n  TestTwo\n', '');
+      return {} as ChildProcess;
+    };
+
+    try {
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      await manager.runAllGTestCases(preset, target, false);
+      assert.strictEqual(runCommand, '/tmp/build/debug/app');
+    } finally {
+      (childProcess as any).execFile = originalExecFile;
     }
   });
 

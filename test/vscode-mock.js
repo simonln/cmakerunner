@@ -67,6 +67,7 @@ const vscode = {
         description: undefined,
         message: undefined,
         visible: true,
+        onDidChangeSelection: () => ({ dispose: () => {} }),
         reveal: async () => undefined,
         dispose: () => { createdTreeViews.delete(id); },
       };

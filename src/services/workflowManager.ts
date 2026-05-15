@@ -124,6 +124,42 @@ export class WorkflowManager {
     await this.taskExecutionEngine.executeRun(runCommand, runLabel, preset.binaryDir);
   }
 
+  public async runAllGTestCases(
+    preset: PresetInfo,
+    target: TargetInfo,
+    buildFirst = true,
+  ): Promise<void> {
+    if (buildFirst) {
+      const buildVariables = this.createVariables(preset, target);
+      const built = await this.executeBuildStep({
+        command: this.configurationManager.getBuildCommand(buildVariables),
+        label: `Build ${target.displayName} [${preset.name}]`,
+        logName: target.name,
+        displayName: target.displayName,
+        failureVerb: 'Build',
+      });
+      if (!built) {
+        return;
+      }
+    }
+
+    const testCases = await this.listGTestCases(preset, target);
+    if (!testCases) {
+      return;
+    }
+
+    if (testCases.length === 0) {
+      void vscode.window.showWarningMessage(`No GoogleTest cases were found in ${target.displayName}.`);
+      return;
+    }
+
+    const runVariables = this.createVariables(preset, target);
+    const runCommand = this.configurationManager.getRunCommand(runVariables);
+    const runLabel = `Run all tests in ${target.displayName} [${preset.name}]`;
+    this.logger.info(`Launching all GoogleTest cases for target ${target.name}`);
+    await this.taskExecutionEngine.executeRun(runCommand, runLabel, preset.binaryDir);
+  }
+
   public async debugTarget(preset: PresetInfo, target: TargetInfo): Promise<void> {
     const buildVariables = this.createVariables(preset, target);
     const built = await this.executeBuildStep({
