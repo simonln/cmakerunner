@@ -109,8 +109,8 @@ By default, both actions build the target first.
 ### 6. Run one GoogleTest case
 
 Use the **GTests** view next to **Targets** to inspect GoogleTest cases by executable target.
-Expanding a target runs it with `--gtest_list_tests`. Selecting a discovered case runs the same
-target with `--gtest_filter=<suite.case>`.
+Expanding a target runs it with `--gtest_list_tests`. Use the inline `Run` action beside a
+discovered case to run the same target with `--gtest_filter=<suite.case>`.
 Use `Filter` to match target names, executable names, suite names, case names, or full
 `suite.case` filters. Use `Clear Filter` to remove the filter, and `Refresh` to clear
 cached discovery results.
