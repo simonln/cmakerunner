@@ -396,7 +396,7 @@ describe('ui', () => {
       assert.strictEqual(cases.length, 1);
       assert.ok(cases[0] instanceof GTestCaseTreeItem);
       assert.strictEqual(cases[0].contextValue, 'gtestCase');
-      assert.strictEqual(cases[0].command?.command, 'cmakerunner.runGTestCase');
+      assert.strictEqual(cases[0].command, undefined);
     });
 
     it('should cache discovered cases until refresh', async () => {
