@@ -456,6 +456,20 @@ describe('ui', () => {
       assert.strictEqual(await provider.getVisibleTargetCount(), 1);
     });
 
+    it('should expose visible gtest cases for filtered target runs', async () => {
+      const provider = new GTestTreeDataProvider(async () => [
+        { suite: 'MathTest', name: 'Adds', filter: 'MathTest.Adds' },
+        { suite: 'StringTest', name: 'Splits', filter: 'StringTest.Splits' },
+      ]);
+      provider.setTargets([target]);
+      provider.setSelectedTarget(target, true);
+
+      provider.setFilterText('math');
+      const cases = await provider.getVisibleTestCases(target);
+
+      assert.deepStrictEqual(cases.map((testCase) => testCase.filter), ['MathTest.Adds']);
+    });
+
     it('should clear gtest filter text', () => {
       const provider = new GTestTreeDataProvider(async () => []);
       provider.setFilterText('math');

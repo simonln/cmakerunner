@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { PresetInfo, TargetInfo } from './models';
+import { GTestCaseInfo, PresetInfo, TargetInfo } from './models';
 import { ConfigurationManager } from './services/configurationManager';
 import { MappingEngine } from './services/mappingEngine';
 import { OutputLogger } from './services/outputLogger';
@@ -15,6 +15,10 @@ import { relativeDisplayPath } from './utils';
 interface TargetQuickPickItem extends vscode.QuickPickItem {
   readonly target?: TargetInfo;
   readonly action?: 'customTextFilter';
+}
+
+interface GTestQuickPickItem extends vscode.QuickPickItem {
+  readonly filterText: string;
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -353,6 +357,62 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     });
   };
 
+  const buildGTestFilterItems = (target: TargetInfo, testCases: readonly GTestCaseInfo[]): GTestQuickPickItem[] => {
+    const suites = new Map<string, GTestCaseInfo[]>();
+    for (const testCase of testCases) {
+      const suiteCases = suites.get(testCase.suite) ?? [];
+      suites.set(testCase.suite, [...suiteCases, testCase]);
+    }
+
+    return [
+      {
+        label: target.displayName,
+        description: path.basename(target.guessedExecutablePath),
+        detail: 'Target executable',
+        filterText: target.displayName,
+      },
+      ...Array.from(suites.entries()).map(([suite, cases]) => ({
+        label: suite,
+        description: `${cases.length} case${cases.length === 1 ? '' : 's'}`,
+        detail: cases.map((testCase) => testCase.name).join(', '),
+        filterText: suite,
+      })),
+      ...testCases.map((testCase) => ({
+        label: testCase.filter,
+        description: testCase.suite,
+        detail: 'GoogleTest case',
+        filterText: testCase.filter,
+      })),
+    ];
+  };
+
+  const pickGTestFilter = async (): Promise<GTestQuickPickItem | undefined> => {
+    const stateMessage = gtestTreeDataProvider.getMessage();
+    if (stateMessage) {
+      void vscode.window.showWarningMessage(stateMessage);
+      return undefined;
+    }
+
+    const target = resolveSelectedTarget();
+    if (!target) {
+      void vscode.window.showWarningMessage('Select a target to filter GoogleTest cases.');
+      return undefined;
+    }
+
+    const testCases = await gtestTreeDataProvider.getAllTestCases(target);
+    if (testCases.length === 0) {
+      void vscode.window.showWarningMessage(`No GoogleTest cases were found in ${target.displayName}.`);
+      return undefined;
+    }
+
+    return vscode.window.showQuickPick(buildGTestFilterItems(target, testCases), {
+      prompt: 'Filter GoogleTest targets, suites, or cases',
+      placeHolder: 'Example: gtest, MathTest, Adds, MathTest.Adds',
+      matchOnDescription: true,
+      matchOnDetail: true,
+    });
+  };
+
   const revealActiveSource = async (filePath: string | undefined): Promise<void> => {
     targetTreeDataProvider.setActiveSourcePath(filePath);
 
@@ -401,16 +461,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await updateGTestSelection(resolveSelectedTarget());
     }),
     vscode.commands.registerCommand('cmakerunner.filterGTests', async () => {
-      const filterText = await vscode.window.showInputBox({
-        prompt: 'Filter GoogleTest targets or cases',
-        placeHolder: 'Example: gtest, MathTest, Adds, MathTest.Adds',
-        value: gtestTreeDataProvider.getFilterText(),
-      });
-      if (filterText === undefined) {
+      const pick = await pickGTestFilter();
+      if (!pick) {
         return;
       }
 
-      await applyGTestFilter(filterText);
+      await applyGTestFilter(pick.filterText);
     }),
     vscode.commands.registerCommand('cmakerunner.clearGTestFilter', async () => {
       await applyGTestFilter('');
@@ -557,7 +613,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
       if (item instanceof GTestTargetTreeItem) {
         await updateGTestSelection(item.target);
-        await workflowManager.runAllGTestCases(preset, item.target);
+        if (gtestTreeDataProvider.getFilterText()) {
+          const testCases = await gtestTreeDataProvider.getVisibleTestCases(item.target);
+          await workflowManager.runGTestCases(preset, item.target, testCases);
+        } else {
+          await workflowManager.runAllGTestCases(preset, item.target);
+        }
         await updateGTestSelection(item.target);
         return;
       }

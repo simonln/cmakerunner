@@ -124,6 +124,42 @@ export class WorkflowManager {
     await this.taskExecutionEngine.executeRun(runCommand, runLabel, preset.binaryDir);
   }
 
+  public async runGTestCases(
+    preset: PresetInfo,
+    target: TargetInfo,
+    testCases: readonly GTestCaseInfo[],
+    buildFirst = true,
+  ): Promise<void> {
+    const filters = Array.from(new Set(testCases.map((testCase) => testCase.filter).filter(Boolean)));
+    if (filters.length === 0) {
+      void vscode.window.showWarningMessage(`No GoogleTest cases were selected in ${target.displayName}.`);
+      return;
+    }
+
+    if (buildFirst) {
+      const buildVariables = this.createVariables(preset, target);
+      const built = await this.executeBuildStep({
+        command: this.configurationManager.getBuildCommand(buildVariables),
+        label: `Build ${target.displayName} [${preset.name}]`,
+        logName: target.name,
+        displayName: target.displayName,
+        failureVerb: 'Build',
+      });
+      if (!built) {
+        return;
+      }
+    }
+
+    const runVariables = this.createVariables(preset, target);
+    const gtestFilterArgument = `--gtest_filter=${quoteForShell(filters.join(':'))}`;
+    const runCommand = `${this.configurationManager.getRunCommand(runVariables)} ${gtestFilterArgument}`;
+    const runLabel = filters.length === 1
+      ? `Run ${filters[0]} [${preset.name}]`
+      : `Run ${filters.length} GoogleTest cases in ${target.displayName} [${preset.name}]`;
+    this.logger.info(`Launching ${filters.length} filtered GoogleTest case(s) for target ${target.name}`);
+    await this.taskExecutionEngine.executeRun(runCommand, runLabel, preset.binaryDir);
+  }
+
   public async runAllGTestCases(
     preset: PresetInfo,
     target: TargetInfo,
