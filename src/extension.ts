@@ -557,7 +557,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
       if (item instanceof GTestTargetTreeItem) {
         await updateGTestSelection(item.target);
-        await workflowManager.runAllGTestCases(preset, item.target);
+        if (gtestTreeDataProvider.getFilterText()) {
+          const testCases = await gtestTreeDataProvider.getVisibleTestCases(item.target);
+          await workflowManager.runGTestCases(preset, item.target, testCases);
+        } else {
+          await workflowManager.runAllGTestCases(preset, item.target);
+        }
         await updateGTestSelection(item.target);
         return;
       }

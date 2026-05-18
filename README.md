@@ -112,7 +112,8 @@ Use the **GTests** view next to **Targets** to inspect GoogleTest cases by execu
 Expanding a target runs it with `--gtest_list_tests`. Use the inline `Run` action beside a
 discovered case to run the same target with `--gtest_filter=<suite.case>`.
 Use `Filter` to match target names, executable names, suite names, case names, or full
-`suite.case` filters. Use `Clear Filter` to remove the filter, and `Refresh` to clear cached discovery results.
+`suite.case` filters. When a filter is active, the target-level `Run` action runs only the
+visible GoogleTest cases. Use `Clear Filter` to remove the filter, and `Refresh` to clear cached discovery results.
 
 
 ## Commands

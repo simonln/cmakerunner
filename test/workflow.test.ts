@@ -320,6 +320,51 @@ describe('workflow manager', () => {
     }
   });
 
+  it('runGTestCases runs selected cases with a combined filter', async () => {
+    const deps = createDeps();
+    let runCommand = '';
+    let runLabel = '';
+    deps.taskExecutionEngine.executeRun = async (command?: string, label?: string) => {
+      runCommand = command ?? '';
+      runLabel = label ?? '';
+      return { exitCode: 0 };
+    };
+
+    const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+    await manager.runGTestCases(preset, target, [
+      { suite: 'SuiteA', name: 'TestOne', filter: 'SuiteA.TestOne' },
+      { suite: 'SuiteA', name: 'TestTwo', filter: 'SuiteA.TestTwo' },
+    ], false);
+
+    assert.strictEqual(runCommand, '/tmp/build/debug/app --gtest_filter=SuiteA.TestOne:SuiteA.TestTwo');
+    assert.strictEqual(runLabel, 'Run 2 GoogleTest cases in App [debug]');
+  });
+
+  it('runGTestCases does not run when no cases are selected', async () => {
+    const deps = createDeps();
+    let warned = '';
+    let runCount = 0;
+    deps.taskExecutionEngine.executeRun = async () => {
+      runCount += 1;
+      return { exitCode: 0 };
+    };
+
+    const originalShowWarningMessage = vscode.window.showWarningMessage;
+    (vscode.window as any).showWarningMessage = async (message: string) => {
+      warned = message;
+      return undefined;
+    };
+
+    try {
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      await manager.runGTestCases(preset, target, [], false);
+      assert.ok(warned.includes('No GoogleTest cases were selected'));
+      assert.strictEqual(runCount, 0);
+    } finally {
+      (vscode.window as any).showWarningMessage = originalShowWarningMessage;
+    }
+  });
+
   it('runAllGTestCases runs the target executable without a gtest filter', async () => {
     const deps = createDeps();
     let runCommand = '';
