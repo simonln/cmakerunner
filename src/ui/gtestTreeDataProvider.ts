@@ -85,8 +85,12 @@ export class GTestTreeDataProvider implements vscode.TreeDataProvider<Node> {
   }
 
   public async getVisibleTestCases(target: TargetInfo): Promise<GTestCaseInfo[]> {
-    const testCases = await this.getTestCases(target);
+    const testCases = await this.getCachedTestCases(target);
     return this.filterVisibleTestCases(target, testCases);
+  }
+
+  public async getAllTestCases(target: TargetInfo): Promise<GTestCaseInfo[]> {
+    return [...await this.getCachedTestCases(target)];
   }
 
   public getMessage(): string | undefined {
@@ -128,7 +132,7 @@ export class GTestTreeDataProvider implements vscode.TreeDataProvider<Node> {
     return undefined;
   }
 
-  private async getTestCases(target: TargetInfo): Promise<GTestCaseInfo[]> {
+  private async getCachedTestCases(target: TargetInfo): Promise<GTestCaseInfo[]> {
     if (this.testCasesByTargetId.has(target.id)) {
       return this.testCasesByTargetId.get(target.id) as GTestCaseInfo[];
     }
@@ -157,7 +161,7 @@ export class GTestTreeDataProvider implements vscode.TreeDataProvider<Node> {
         continue;
       }
 
-      const testCases = await this.getTestCases(target);
+      const testCases = await this.getCachedTestCases(target);
       if (testCases.some((testCase) => this.matchesTestCase(testCase, query))) {
         visibleTargets.push(target);
       }

@@ -108,9 +108,10 @@ code --install-extension cmakerunner-0.x.x.vsix
 你可以在和 **Targets** 并列的 **GTests** 视图中按可执行目标查看 GoogleTest 用例。
 展开某个目标时会执行 `--gtest_list_tests` 读取用例；通过单个用例右侧的
 `Run` 操作，会用 `--gtest_filter=<suite.case>` 只运行该用例。
-使用 `Filter` 可以按目标名、可执行文件名、suite 名、case 名或完整
-`suite.case` 过滤。过滤生效时，目标右侧的 `Run` 操作只会运行当前可见的
-GoogleTest 用例；使用 `Clear Filter` 清除过滤；使用 `Refresh` 清除已缓存的用例发现结果。
+使用 `Filter` 会展示当前目标、已发现的 suite 和已发现的 case，并可按目标名、
+可执行文件名、suite 名、case 名或完整 `suite.case` 过滤。过滤生效时，目标右侧的
+`Run` 操作只会运行当前可见的 GoogleTest 用例；使用 `Clear Filter` 清除过滤；使用 `Refresh`
+清除已缓存的用例发现结果。
 
 ### 7. 过滤目标
 
