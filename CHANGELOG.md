@@ -1,5 +1,9 @@
 # CMake Runner
 
+## V0.3.0 2026-05-19
+### Enhancements
+* GTests support source navigation and per-case debugging
+
 ## V0.2.2 2026-05-18
 ### Bug Fixes
 * Fixed an issue where gtest executed the entire target test case when a filter was present.
