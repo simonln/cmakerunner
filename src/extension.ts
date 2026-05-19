@@ -6,6 +6,7 @@ import { MappingEngine } from './services/mappingEngine';
 import { OutputLogger } from './services/outputLogger';
 import { PresetProvider } from './services/presetProvider';
 import { TaskExecutionEngine } from './services/taskExecutionEngine';
+import { findGTestSourceLocation } from './services/gtestSourceLocator';
 import { WorkflowManager } from './services/workflowManager';
 import { GTestCaseTreeItem, GTestTargetTreeItem, GTestTreeDataProvider } from './ui/gtestTreeDataProvider';
 import { PresetTreeDataProvider, PresetTreeItem } from './ui/presetTreeDataProvider';
@@ -437,6 +438,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   };
 
+  const openGTestCaseSource = async (item: GTestCaseTreeItem): Promise<void> => {
+    const location = await findGTestSourceLocation(item.testCase, item.target.sourceFiles);
+    if (!location) {
+      logger.warn(`Unable to locate source for GoogleTest case ${item.testCase.filter}`);
+      void vscode.window.showWarningMessage(`Unable to locate source for GoogleTest case ${item.testCase.filter}.`);
+      return;
+    }
+
+    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(location.filePath));
+    const editor = await vscode.window.showTextDocument(document);
+    const position = new vscode.Position(location.line, location.character);
+    editor.selection = new vscode.Selection(position, position);
+    editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+  };
+
   context.subscriptions.push(
     vscode.commands.registerCommand('cmakerunner.refresh', async () => {
       await refresh(currentPreset?.name);
@@ -470,6 +486,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
     vscode.commands.registerCommand('cmakerunner.clearGTestFilter', async () => {
       await applyGTestFilter('');
+    }),
+    vscode.commands.registerCommand('cmakerunner.openGTestCaseSource', async (item?: GTestCaseTreeItem) => {
+      if (!(item instanceof GTestCaseTreeItem)) {
+        return;
+      }
+
+      await openGTestCaseSource(item);
     }),
     vscode.commands.registerCommand('cmakerunner.selectPreset', async (item?: PresetTreeItem) => {
       if (!item) {
@@ -631,6 +654,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await selectTarget(target);
       await workflowManager.runGTestCase(preset, target);
       await updateGTestSelection(target);
+    }),
+    vscode.commands.registerCommand('cmakerunner.debugGTestCase', async (item?: GTestCaseTreeItem) => {
+      const preset = ensurePreset();
+      if (!preset || !(item instanceof GTestCaseTreeItem)) {
+        return;
+      }
+
+      await updateGTestSelection(item.target);
+      await workflowManager.debugGTestCase(preset, item.target, item.testCase);
+      await updateGTestSelection(item.target);
     }),
     vscode.commands.registerCommand('cmakerunner.debugTarget', async (item?: TargetTreeItem | SourceTreeItem) => {
       const preset = ensurePreset();

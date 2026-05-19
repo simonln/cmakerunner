@@ -196,6 +196,29 @@ export class WorkflowManager {
     await this.taskExecutionEngine.executeRun(runCommand, runLabel, preset.binaryDir);
   }
 
+  public async debugGTestCase(
+    preset: PresetInfo,
+    target: TargetInfo,
+    testCase: GTestCaseInfo,
+    buildFirst = true,
+  ): Promise<void> {
+    if (buildFirst) {
+      const buildVariables = this.createVariables(preset, target);
+      const built = await this.executeBuildStep({
+        command: this.configurationManager.getBuildCommand(buildVariables),
+        label: `Build ${target.displayName} [${preset.name}]`,
+        logName: target.name,
+        displayName: target.displayName,
+        failureVerb: 'Build',
+      });
+      if (!built) {
+        return;
+      }
+    }
+
+    await this.prepareGTestDebugging(preset, target, testCase);
+  }
+
   public async debugTarget(preset: PresetInfo, target: TargetInfo): Promise<void> {
     const buildVariables = this.createVariables(preset, target);
     const built = await this.executeBuildStep({
@@ -208,6 +231,49 @@ export class WorkflowManager {
 
     if (built) {
       await this.prepareDebugging(preset, target);
+    }
+  }
+
+  private async prepareGTestDebugging(preset: PresetInfo, target: TargetInfo, testCase: GTestCaseInfo): Promise<void> {
+    const variables = this.createVariables(preset, target);
+    const program = this.configurationManager.resolveDebugProgram(variables);
+    const debugType = this.configurationManager.getDebugType();
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+
+    if (!workspaceFolder) {
+      this.logger.warn(`Unable to write launch.json because no workspace folder is available for ${target.name}`);
+      void vscode.window.showWarningMessage(`Unable to prepare launch.json for ${testCase.filter} because no workspace folder is open.`);
+      return;
+    }
+
+    await this.ensureLaunchJsonExists(workspaceFolder);
+
+    const configurationName = `Debug ${testCase.filter}`;
+    const launchConfiguration = {
+      name: configurationName,
+      type: debugType,
+      expressions: debugType == 'lldb' ? 'native': undefined,
+      request: 'launch',
+      program,
+      cwd: path.dirname(program || target.guessedExecutablePath),
+      args: [`--gtest_filter=${testCase.filter}`],
+      env: {
+        ASAN_OPTIONS: 'detect_leaks=0',
+        LSAN_OPTIONS: 'detect_leaks=0',
+      },
+    };
+
+    const launchSettings = vscode.workspace.getConfiguration('launch', workspaceFolder.uri);
+    const existingConfigurations = launchSettings.get<Record<string, unknown>[]>('configurations', []);
+    const nextConfigurations = existingConfigurations.filter((configuration) => configuration?.name !== configurationName);
+    nextConfigurations.push(launchConfiguration);
+
+    await launchSettings.update('configurations', nextConfigurations, vscode.ConfigurationTarget.WorkspaceFolder);
+    this.logger.info(`Updated launch.json for GoogleTest case ${testCase.filter}. configuration=${configurationName}, program=${program}`);
+
+    const started = await vscode.debug.startDebugging(workspaceFolder, launchConfiguration);
+    if (!started) {
+      void vscode.window.showInformationMessage(`Debug configuration '${configurationName}' has been added to launch.json.`);
     }
   }
 
@@ -280,6 +346,22 @@ export class WorkflowManager {
 
     if (action === 'Open Run and Debug') {
       await vscode.commands.executeCommand('workbench.view.debug');
+    }
+  }
+
+  private async ensureLaunchJsonExists(workspaceFolder: vscode.WorkspaceFolder): Promise<void> {
+    const vscodeDirUri = vscode.Uri.joinPath(workspaceFolder.uri, '.vscode');
+    const launchJsonUri = vscode.Uri.joinPath(vscodeDirUri, 'launch.json');
+
+    try {
+      await vscode.workspace.fs.stat(launchJsonUri);
+      return;
+    } catch {
+      await vscode.workspace.fs.createDirectory(vscodeDirUri);
+      await vscode.workspace.fs.writeFile(
+        launchJsonUri,
+        Buffer.from(JSON.stringify({ version: '0.2.0', configurations: [] }, null, 2)),
+      );
     }
   }
 

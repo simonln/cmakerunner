@@ -121,6 +121,14 @@
                 }
             },
             {
+                "command": "cmakerunner.debugGTestCase",
+                "title": "Debug GTest Case",
+                "icon": {
+                    "light": "resources/debug-light.svg",
+                    "dark": "resources/debug-dark.svg"
+                }
+            },
+            {
                 "command": "cmakerunner.debugTarget",
                 "title": "Debug Target",
                 "icon": {
@@ -229,6 +237,11 @@
                     "command": "cmakerunner.runGTestCase",
                     "when": "view == cmakerunner.gtests && viewItem == gtestCase",
                     "group": "inline@1"
+                },
+                {
+                    "command": "cmakerunner.debugGTestCase",
+                    "when": "view == cmakerunner.gtests && viewItem == gtestCase",
+                    "group": "inline@2"
                 }
             ]
         },
@@ -263,7 +276,7 @@
                 "cmakerunner.debug.type": {
                     "type": "string",
                     "default": "",
-                    "description": "Debug configuration type written into launch.json. Leave empty to use the platform default: cppvsdbg on Windows, cppdbg/lldb on other platforms."
+                    "description": "Debug configuration type written into launch.json. Leave empty to use the platform default: cppvsdbg on Windows, lldb on macOS, cppdbg on Linux."
                 }
             }
         }

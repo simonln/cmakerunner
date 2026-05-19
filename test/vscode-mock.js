@@ -28,6 +28,7 @@ const vscode = {
       inspect: (key) => ({ key, defaultValue: undefined, globalValue: undefined, workspaceValue: undefined }),
     }),
     workspaceFolders: [{ uri: { fsPath: projectRoot } }],
+    openTextDocument: async (uri) => ({ uri }),
     fs: {
       readFile: async (uri) => fs.promises.readFile(uri.fsPath),
       readDirectory: async (uri) => {
@@ -79,6 +80,11 @@ const vscode = {
     showErrorMessage: async (msg) => undefined,
     showQuickPick: async (items) => items?.[0],
     showInputBox: async () => undefined,
+    showTextDocument: async (document) => ({
+      document,
+      selection: undefined,
+      revealRange: () => undefined,
+    }),
     activeTextEditor: undefined,
     onDidChangeActiveTextEditor: () => ({ dispose: () => {} }),
   },
@@ -111,6 +117,7 @@ const vscode = {
   Uri: {
     file: (fsPath) => ({ fsPath }),
     parse: (uri) => ({ fsPath: uri }),
+    joinPath: (base, ...segments) => ({ fsPath: path.join(base.fsPath, ...segments) }),
   },
 
   EventEmitter: class {
@@ -143,6 +150,30 @@ const vscode = {
   TaskGroup: { Build: {}, Clean: {}, Test: {} },
   TaskScope: { Workspace: 2 },
   ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
+  TextEditorRevealType: { Default: 0, InCenter: 1, InCenterIfOutsideViewport: 2, AtTop: 3 },
+
+  Position: class {
+    constructor(line, character) {
+      this.line = line;
+      this.character = character;
+    }
+  },
+
+  Range: class {
+    constructor(start, end) {
+      this.start = start;
+      this.end = end;
+    }
+  },
+
+  Selection: class {
+    constructor(anchor, active) {
+      this.anchor = anchor;
+      this.active = active;
+      this.start = anchor;
+      this.end = active;
+    }
+  },
 
   Task: class {
     constructor(definition, scope, name, source, execution, problemMatchers) {
