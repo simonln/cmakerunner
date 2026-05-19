@@ -209,4 +209,13 @@ describe('utils', () => {
       assert.throws(() => utils.parseJsonBuffer(buffer));
     });
   });
+
+  describe('decodeTextBuffer', () => {
+    it('should decode GBK compatible text when UTF-8 is invalid', () => {
+      const buffer = Buffer.from([0xd6, 0xd0, 0xce, 0xc4]);
+      const result = utils.decodeTextBuffer(buffer);
+      assert.strictEqual(result.text, '中文');
+      assert.strictEqual(result.encoding, 'gb18030');
+    });
+  });
 });

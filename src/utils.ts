@@ -1,10 +1,16 @@
 import * as path from 'path';
 
 type JsonEncoding = 'utf8' | 'utf16le' | 'utf16be';
+type TextEncoding = JsonEncoding | 'gb18030' | 'gbk' | 'gb2312';
 
 interface ParsedJsonBuffer<T> {
   readonly value: T;
   readonly encoding: JsonEncoding;
+}
+
+interface DecodedTextBuffer {
+  readonly text: string;
+  readonly encoding: TextEncoding;
 }
 
 export function normalizePath(filePath: string): string {
@@ -91,6 +97,33 @@ export function parseJsonBuffer<T>(content: Uint8Array): ParsedJsonBuffer<T> {
     : new Error('Unable to parse JSON content with supported encodings');
 }
 
+export function decodeTextBuffer(content: Uint8Array): DecodedTextBuffer {
+  const [decoded] = decodeTextBufferCandidates(content);
+  if (decoded) {
+    return decoded;
+  }
+
+  throw new Error('Unable to decode text content with supported encodings');
+}
+
+export function decodeTextBufferCandidates(content: Uint8Array): DecodedTextBuffer[] {
+  const buffer = Buffer.from(content);
+  const candidates: DecodedTextBuffer[] = [];
+
+  for (const encoding of getTextEncodingCandidates(buffer)) {
+    try {
+      candidates.push({
+        text: decodeBuffer(buffer, encoding).replace(/^\uFEFF/, ''),
+        encoding,
+      });
+    } catch {
+      // Unsupported or incompatible encodings are skipped.
+    }
+  }
+
+  return candidates;
+}
+
 function getJsonEncodingCandidates(buffer: Buffer): JsonEncoding[] {
   const candidates: JsonEncoding[] = [];
 
@@ -112,12 +145,42 @@ function getJsonEncodingCandidates(buffer: Buffer): JsonEncoding[] {
 }
 
 function decodeJsonBuffer(buffer: Buffer, encoding: JsonEncoding): string {
+  return decodeBuffer(buffer, encoding);
+}
+
+function getTextEncodingCandidates(buffer: Buffer): TextEncoding[] {
+  const candidates: TextEncoding[] = [];
+  const [bomEncoding] = getJsonEncodingCandidates(buffer);
+  if (bomEncoding && hasEncodingBom(buffer, bomEncoding)) {
+    candidates.push(bomEncoding);
+  }
+
+  for (const encoding of ['utf8', 'gb18030', 'gbk', 'gb2312', 'utf16le', 'utf16be'] as const) {
+    if (!candidates.includes(encoding)) {
+      candidates.push(encoding);
+    }
+  }
+
+  return candidates;
+}
+
+function hasEncodingBom(buffer: Buffer, encoding: JsonEncoding): boolean {
+  return (encoding === 'utf8' && buffer.length >= 3 && buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf)
+    || (encoding === 'utf16le' && buffer.length >= 2 && buffer[0] === 0xff && buffer[1] === 0xfe)
+    || (encoding === 'utf16be' && buffer.length >= 2 && buffer[0] === 0xfe && buffer[1] === 0xff);
+}
+
+function decodeBuffer(buffer: Buffer, encoding: TextEncoding): string {
   if (encoding === 'utf8') {
-    return new TextDecoder('utf-8').decode(buffer);
+    return new TextDecoder('utf-8', { fatal: true }).decode(buffer);
   }
 
   if (encoding === 'utf16le') {
-    return new TextDecoder('utf-16le').decode(buffer);
+    return new TextDecoder('utf-16le', { fatal: true }).decode(buffer);
+  }
+
+  if (encoding === 'gb18030' || encoding === 'gbk' || encoding === 'gb2312') {
+    return new TextDecoder(encoding, { fatal: true }).decode(buffer);
   }
 
   const swapped = Buffer.from(buffer);
@@ -127,5 +190,5 @@ function decodeJsonBuffer(buffer: Buffer, encoding: JsonEncoding): string {
     swapped[index + 1] = first;
   }
 
-  return new TextDecoder('utf-16le').decode(swapped);
+  return new TextDecoder('utf-16le', { fatal: true }).decode(swapped);
 }

@@ -16,6 +16,7 @@ It is designed for projects that already use `CMakePresets.json` and want a more
 - Reveals the matching source node when the active editor switches to a mapped file
 - Supports target filtering by target name, executable name, or source file name
 - Builds, runs, and debugs targets from the `Targets` view or from the active mapped source file
+- Lists GoogleTest cases for built executable targets, opens a case's source on click, and provides inline run/debug actions
 - Adds an editor title build button that starts from the current file and lets you pick from auto-filtered targets
 - Lets you customize configure, build, and run command templates through `settings.json`
 
@@ -44,7 +45,8 @@ Before using the extension, make sure the workspace meets these conditions:
 2. The project is a working CMake C++ project that can be configured and built
 3. A C/C++ debugging backend is available in VS Code
    - Windows: usually `cppvsdbg`
-   - Linux/macOS: usually `cppdbg`
+   - Linux: usually `cppdbg`
+   - macOS: usually `lldb`
 
 By default, preset configure runs `cmake --preset ${preset}`. Target discovery and source mapping rely on the configure step completing successfully.
 
@@ -129,6 +131,7 @@ The extension currently contributes these commands:
 - `cmakerunner.buildTargetFromCurrentFile`: build the target mapped to the active source file
 - `cmakerunner.runTarget`: build and run the resolved target
 - `cmakerunner.runGTestCase`: build the resolved target, select a GoogleTest case, and run only that case
+- `cmakerunner.debugGTestCase`: build the resolved target, write/update a launch configuration for one GoogleTest case, and start debugging it
 - `cmakerunner.debugTarget`: build and debug the resolved target
 - `cmakerunner.refreshGTests`: clear cached GoogleTest discovery results and reload the GTests view
 - `cmakerunner.filterGTests`: filter visible GoogleTest targets and cases
@@ -147,7 +150,7 @@ The extension exposes these settings in VS Code `settings.json`:
 | `cmakerunner.tasks.buildCommandTemplate` | `cmake --build ${buildDir}${configurationArgument} --target ${target}` | Build command template used for targets |
 | `cmakerunner.tasks.runCommandTemplate` | `${executableCommand}` | Run command template used for targets |
 | `cmakerunner.tasks.clearTerminalBeforeRun` | `true` | Clears the shared terminal before build or run tasks |
-| `cmakerunner.debug.type` | `""` | Debug configuration type written into `launch.json`. Leave empty to use the platform default: `cppvsdbg` on Windows, `cppdbg`/`lldb` on other platforms. |
+| `cmakerunner.debug.type` | `""` | Debug configuration type written into `launch.json`. Leave empty to use the platform default: `cppvsdbg` on Windows, `lldb` on macOS, `cppdbg` on Linux. |
 
 ### Supported variables for configure templates
 

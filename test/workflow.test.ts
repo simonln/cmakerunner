@@ -1,5 +1,8 @@
 import * as assert from 'assert';
 import type { ChildProcess } from 'child_process';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { PresetInfo, TargetInfo } from '../src/models';
 import { parseGTestListOutput, WorkflowManager } from '../src/services/workflowManager';
@@ -385,6 +388,74 @@ describe('workflow manager', () => {
       assert.strictEqual(runCommand, '/tmp/build/debug/app');
     } finally {
       (childProcess as any).execFile = originalExecFile;
+    }
+  });
+
+  it('debugGTestCase writes launch configuration and starts the selected test case', async () => {
+    const deps = createDeps();
+    deps.configurationManager.getDebugType = () => 'lldb';
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cmakerunner-workflow-'));
+    const existingConfiguration = {
+      name: 'Keep Me',
+      type: 'cppdbg',
+      request: 'launch',
+      program: '/tmp/keep',
+    };
+    let updatedConfigurations: Record<string, unknown>[] = [];
+    let startedConfiguration: Record<string, unknown> | undefined;
+
+    const originalWorkspaceFolders = vscode.workspace.workspaceFolders;
+    const originalGetConfiguration = vscode.workspace.getConfiguration;
+    const originalStartDebugging = vscode.debug.startDebugging;
+
+    (vscode.workspace as { workspaceFolders?: typeof vscode.workspace.workspaceFolders }).workspaceFolders = [
+      { uri: { fsPath: tempRoot } } as unknown as vscode.WorkspaceFolder,
+    ];
+    (vscode.workspace as any).getConfiguration = (section?: string, scope?: vscode.Uri) => {
+      if (section === 'launch' && scope) {
+        return {
+          get: () => [existingConfiguration],
+          update: async (_key: string, value: Record<string, unknown>[]) => {
+            updatedConfigurations = value;
+          },
+        };
+      }
+      return originalGetConfiguration(section as never, scope);
+    };
+    (vscode.debug as any).startDebugging = async (_folder: vscode.WorkspaceFolder, configuration: Record<string, unknown>) => {
+      startedConfiguration = configuration;
+      return true;
+    };
+
+    try {
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      await manager.debugGTestCase(preset, target, { suite: 'MathTest', name: 'Adds', filter: 'MathTest.Adds' }, false);
+    } finally {
+      (vscode.workspace as { workspaceFolders?: typeof vscode.workspace.workspaceFolders }).workspaceFolders = originalWorkspaceFolders;
+      (vscode.workspace as any).getConfiguration = originalGetConfiguration;
+      (vscode.debug as any).startDebugging = originalStartDebugging;
+    }
+
+    try {
+      assert.ok(fs.existsSync(path.join(tempRoot, '.vscode', 'launch.json')));
+      assert.strictEqual(updatedConfigurations.length, 2);
+      assert.deepStrictEqual(updatedConfigurations[0], existingConfiguration);
+      assert.deepStrictEqual(updatedConfigurations[1], {
+        name: 'Debug MathTest.Adds',
+        type: 'lldb',
+        expressions: 'native',
+        request: 'launch',
+        program: '/tmp/build/debug/app',
+        cwd: '/tmp/build/debug',
+        args: ['--gtest_filter=MathTest.Adds'],
+        env: {
+          ASAN_OPTIONS: 'detect_leaks=0',
+          LSAN_OPTIONS: 'detect_leaks=0',
+        },
+      });
+      assert.deepStrictEqual(startedConfiguration, updatedConfigurations[1]);
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
     }
   });
 

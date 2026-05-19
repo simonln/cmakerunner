@@ -67,7 +67,7 @@
 2. 插件根据 target、preset、关联的 build preset / configuration 与配置模板生成实际命令
 3. `TaskExecutionEngine` 以 shell task 方式执行任务；构建任务接入 `$gcc` 和 `$msCompile` problem matcher
 4. `Run` 和 `Debug` 默认都会先构建目标；仅当构建成功后才继续运行或启动调试
-5. `Debug` 由 `WorkflowManager` 动态构造 `cppvsdbg` 或 `cppdbg` 配置并发起调试会话
+5. `Debug` 由 `WorkflowManager` 动态构造平台默认调试配置并发起调试会话，Windows 默认为 `cppvsdbg`，macOS 默认为 `lldb`，Linux 默认为 `cppdbg`
 
 ## 5. 配置与扩展性设计
 

@@ -19,6 +19,7 @@
 - 当活动编辑器切换到已映射源码时，在树中定位对应源码节点
 - 支持按目标名、可执行文件名、源码文件名过滤目标
 - 可从 `Targets` 视图或当前已映射源码文件直接执行 build、run、debug
+- 可在 `GTests` 视图中查看已构建目标的 GoogleTest 用例，点击用例跳转源码，并提供单个用例的运行/调试按钮
 - 支持通过 `settings.json` 自定义 configure、build、run 命令模板
 
 ## 典型工作流
@@ -47,7 +48,8 @@
 2. 项目本身是可正常 configure 和 build 的 CMake C++ 工程
 3. VS Code 中已经安装可用的 C/C++ 调试后端
    - Windows：通常为 `cppvsdbg`
-   - Linux/macOS：通常为 `cppdbg`
+   - Linux：通常为 `cppdbg`
+   - macOS：通常为 `lldb`
 4. 至少需要先成功执行一次 configure，让构建目录中生成 CMake File API reply 数据
 
 默认情况下，preset configure 使用 `cmake --preset ${preset}`，并且会在 configure 前写入 `.cmake/api/v1/query/codemodel-v2`。当前目标发现与源码映射主要依赖 CMake File API reply。
@@ -136,6 +138,7 @@ code --install-extension cmakerunner-0.x.x.vsix
 - `cmakerunner.buildTargetFromCurrentFile`：构建当前活动源文件映射到的目标
 - `cmakerunner.runTarget`：构建并运行解析到的目标
 - `cmakerunner.runGTestCase`：构建解析到的目标，选择并运行单个 GoogleTest 用例
+- `cmakerunner.debugGTestCase`：构建解析到的目标，为单个 GoogleTest 用例写入/更新调试配置并启动调试
 - `cmakerunner.debugTarget`：构建并调试解析到的目标
 - `cmakerunner.refreshGTests`：清除 GoogleTest 发现缓存并刷新 GTests 视图
 - `cmakerunner.filterGTests`：过滤可见的 GoogleTest 目标和用例
@@ -154,7 +157,7 @@ code --install-extension cmakerunner-0.x.x.vsix
 | `cmakerunner.tasks.buildCommandTemplate` | `cmake --build ${buildDir}${configurationArgument} --target ${target}` | 目标构建使用的命令模板 |
 | `cmakerunner.tasks.runCommandTemplate` | `${executableCommand}` | 目标运行使用的命令模板 |
 | `cmakerunner.tasks.clearTerminalBeforeRun` | `true` | build 或 run 前是否清理共享终端 |
-| `cmakerunner.debug.type` | `""` | 写入 `launch.json` 的 debug 配置类型。留空则使用平台默认值：Windows 上为 `cppvsdbg`，其他平台为 `cppdbg`/`lldb` |
+| `cmakerunner.debug.type` | `""` | 写入 `launch.json` 的 debug 配置类型。留空则使用平台默认值：Windows 上为 `cppvsdbg`，macOS 上为 `lldb`，Linux 上为 `cppdbg` |
 
 ### configure 模板支持的变量
 

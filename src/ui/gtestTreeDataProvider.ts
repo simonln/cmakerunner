@@ -23,6 +23,11 @@ export class GTestCaseTreeItem extends vscode.TreeItem {
     this.tooltip = testCase.filter;
     this.contextValue = 'gtestCase';
     this.iconPath = new vscode.ThemeIcon('testing-passed-icon');
+    this.command = {
+      command: 'cmakerunner.openGTestCaseSource',
+      title: 'Open GTest Source',
+      arguments: [this],
+    };
   }
 }
 

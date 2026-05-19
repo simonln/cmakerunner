@@ -2,6 +2,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { GTestCaseTreeItem } from '../src/ui/gtestTreeDataProvider';
 
 type MockVscode = typeof vscode & {
   __mock: {
@@ -27,6 +28,7 @@ describe('extension commands', () => {
   const originalWorkspaceFolders = vscode.workspace.workspaceFolders;
   const originalShowQuickPick = vscode.window.showQuickPick;
   const originalShowInputBox = vscode.window.showInputBox;
+  const originalShowTextDocument = vscode.window.showTextDocument;
 
   before(() => {
     fs.mkdirSync(sourceDir, { recursive: true });
@@ -101,6 +103,7 @@ describe('extension commands', () => {
   afterEach(() => {
     (vscode.window as { showQuickPick: typeof vscode.window.showQuickPick }).showQuickPick = originalShowQuickPick;
     (vscode.window as { showInputBox: typeof vscode.window.showInputBox }).showInputBox = originalShowInputBox;
+    (vscode.window as { showTextDocument: typeof vscode.window.showTextDocument }).showTextDocument = originalShowTextDocument;
     (vscode.workspace as { workspaceFolders?: typeof vscode.workspace.workspaceFolders }).workspaceFolders = originalWorkspaceFolders;
   });
 
@@ -199,6 +202,68 @@ describe('extension commands', () => {
     }
 
     assert.strictEqual(gtestTargetName, 'app');
+  });
+
+  it('openGTestCaseSource opens the matching source file', async () => {
+    await activateExtension();
+
+    fs.writeFileSync(appSourcePath, [
+      '#include <gtest/gtest.h>',
+      '',
+      'TEST(MathTest, Adds) {',
+      '  ASSERT_TRUE(true);',
+      '}',
+    ].join('\n'));
+
+    let shownEditor: vscode.TextEditor | undefined;
+    (vscode.window as any).showTextDocument = async (document: vscode.TextDocument) => {
+      shownEditor = {
+        document,
+        revealRange: () => undefined,
+      } as unknown as vscode.TextEditor;
+      return shownEditor;
+    };
+
+    const item = new GTestCaseTreeItem({
+      id: 'app',
+      name: 'app',
+      displayName: 'app',
+      sourceFiles: [appSourcePath],
+      guessedExecutablePath: path.join(fixtureRoot, 'bin', 'app'),
+    }, { suite: 'MathTest', name: 'Adds', filter: 'MathTest.Adds' });
+
+    await vscode.commands.executeCommand('cmakerunner.openGTestCaseSource', item);
+
+    assert.strictEqual(shownEditor?.document.uri.fsPath, appSourcePath);
+    assert.strictEqual(shownEditor?.selection.active.line, 2);
+  });
+
+  it('debugGTestCase delegates the selected tree item to the workflow manager', async () => {
+    await activateExtension();
+
+    const workflowModule = require('../src/services/workflowManager') as typeof import('../src/services/workflowManager');
+    const originalDebugGTestCase = workflowModule.WorkflowManager.prototype.debugGTestCase;
+    let debuggedFilter: string | undefined;
+
+    workflowModule.WorkflowManager.prototype.debugGTestCase = async (_preset, _target, testCase) => {
+      debuggedFilter = testCase.filter;
+    };
+
+    const item = new GTestCaseTreeItem({
+      id: 'app',
+      name: 'app',
+      displayName: 'app',
+      sourceFiles: [appSourcePath],
+      guessedExecutablePath: path.join(fixtureRoot, 'bin', 'app'),
+    }, { suite: 'MathTest', name: 'Adds', filter: 'MathTest.Adds' });
+
+    try {
+      await vscode.commands.executeCommand('cmakerunner.debugGTestCase', item);
+    } finally {
+      workflowModule.WorkflowManager.prototype.debugGTestCase = originalDebugGTestCase;
+    }
+
+    assert.strictEqual(debuggedFilter, 'MathTest.Adds');
   });
 
   it('creates a GTests view alongside the Targets view', async () => {
