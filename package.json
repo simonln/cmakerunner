@@ -276,7 +276,7 @@
                 "cmakerunner.debug.type": {
                     "type": "string",
                     "default": "",
-                    "description": "Debug configuration type written into launch.json. Leave empty to use the platform default: cppvsdbg on Windows, lldb on macOS, cppdbg on Linux."
+                    "description": "Debug configuration type written into launch.json. Leave empty to use the platform default: cppvsdbg on Windows, lldb on Linux/macOS."
                 }
             }
         }
