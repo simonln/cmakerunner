@@ -51,7 +51,7 @@ Before using the extension, make sure the workspace meets these conditions:
 2. The project is a working CMake C++ project that can be configured and built
 3. A C/C++ debugging backend is available in VS Code
    - Windows: usually `cppvsdbg`
-   - Linux: usually `cppdbg`
+   - Linux: usually `lldb`
    - macOS: usually `lldb`
 4. You must successfully run configure at least once so the build directory contains CMake File API reply data
 
@@ -161,7 +161,7 @@ The extension exposes these settings in VS Code `settings.json`:
 | `cmakerunner.tasks.buildCommandTemplate` | `cmake --build ${buildDir}${configurationArgument} --target ${target}` | Build command template used for targets |
 | `cmakerunner.tasks.runCommandTemplate` | `${executableCommand}` | Run command template used for targets |
 | `cmakerunner.tasks.clearTerminalBeforeRun` | `true` | Clears the shared terminal before build or run tasks |
-| `cmakerunner.debug.type` | `""` | Debug configuration type written into `launch.json`. Leave empty to use the platform default: `cppvsdbg` on Windows, `lldb` on macOS, `cppdbg` on Linux. |
+| `cmakerunner.debug.type` | `""` | Debug configuration type written into `launch.json`. Leave empty to use the platform default: `cppvsdbg` on Windows, `lldb` on Linux/macOS. |
 
 ### Supported variables for configure templates
 

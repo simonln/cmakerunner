@@ -98,6 +98,18 @@ it('should call appendLine for info level', () => {
       } as unknown as vscode.WorkspaceConfiguration;
     };
 
+    const withMockPlatform = <T>(platform: NodeJS.Platform, run: () => T): T => {
+      const originalDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+      Object.defineProperty(process, 'platform', { value: platform });
+      try {
+        return run();
+      } finally {
+        if (originalDescriptor) {
+          Object.defineProperty(process, 'platform', originalDescriptor);
+        }
+      }
+    };
+
     it('should get preset configure command with variables', () => {
       const mockConfig = createMockConfig({
         'tasks.presetConfigureCommandTemplate': 'cmake --preset ${preset} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON',
@@ -186,6 +198,60 @@ it('should call appendLine for info level', () => {
       assert.strictEqual(result, true);
 
       vscode.workspace.getConfiguration = originalGetConfig;
+    });
+
+    it('should default debug type to lldb on Linux and macOS', () => {
+      const mockConfig = createMockConfig({
+        'debug.type': '',
+      });
+
+      const originalGetConfig = vscode.workspace.getConfiguration;
+      (vscode.workspace as any).getConfiguration = () => mockConfig;
+
+      try {
+        withMockPlatform('linux', () => {
+          assert.strictEqual(new ConfigurationManager().getDebugType(), 'lldb');
+        });
+        withMockPlatform('darwin', () => {
+          assert.strictEqual(new ConfigurationManager().getDebugType(), 'lldb');
+        });
+      } finally {
+        vscode.workspace.getConfiguration = originalGetConfig;
+      }
+    });
+
+    it('should default debug type to cppvsdbg on Windows', () => {
+      const mockConfig = createMockConfig({
+        'debug.type': '',
+      });
+
+      const originalGetConfig = vscode.workspace.getConfiguration;
+      (vscode.workspace as any).getConfiguration = () => mockConfig;
+
+      try {
+        withMockPlatform('win32', () => {
+          assert.strictEqual(new ConfigurationManager().getDebugType(), 'cppvsdbg');
+        });
+      } finally {
+        vscode.workspace.getConfiguration = originalGetConfig;
+      }
+    });
+
+    it('should use configured debug type when provided', () => {
+      const mockConfig = createMockConfig({
+        'debug.type': 'cppdbg',
+      });
+
+      const originalGetConfig = vscode.workspace.getConfiguration;
+      (vscode.workspace as any).getConfiguration = () => mockConfig;
+
+      try {
+        withMockPlatform('linux', () => {
+          assert.strictEqual(new ConfigurationManager().getDebugType(), 'cppdbg');
+        });
+      } finally {
+        vscode.workspace.getConfiguration = originalGetConfig;
+      }
     });
 
     it('should resolve debug program from run command', () => {

@@ -31,7 +31,7 @@ export class ConfigurationManager {
       return 'cppvsdbg';
     }
 
-    return process.platform === 'darwin' ? 'lldb' : 'cppdbg';
+    return 'lldb';
   }
 
   public resolveDebugProgram(variables: TaskVariables): string {

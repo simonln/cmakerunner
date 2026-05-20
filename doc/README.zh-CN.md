@@ -48,7 +48,7 @@
 2. 项目本身是可正常 configure 和 build 的 CMake C++ 工程
 3. VS Code 中已经安装可用的 C/C++ 调试后端
    - Windows：通常为 `cppvsdbg`
-   - Linux：通常为 `cppdbg`
+   - Linux：通常为 `lldb`
    - macOS：通常为 `lldb`
 4. 至少需要先成功执行一次 configure，让构建目录中生成 CMake File API reply 数据
 
@@ -157,7 +157,7 @@ code --install-extension cmakerunner-0.x.x.vsix
 | `cmakerunner.tasks.buildCommandTemplate` | `cmake --build ${buildDir}${configurationArgument} --target ${target}` | 目标构建使用的命令模板 |
 | `cmakerunner.tasks.runCommandTemplate` | `${executableCommand}` | 目标运行使用的命令模板 |
 | `cmakerunner.tasks.clearTerminalBeforeRun` | `true` | build 或 run 前是否清理共享终端 |
-| `cmakerunner.debug.type` | `""` | 写入 `launch.json` 的 debug 配置类型。留空则使用平台默认值：Windows 上为 `cppvsdbg`，macOS 上为 `lldb`，Linux 上为 `cppdbg` |
+| `cmakerunner.debug.type` | `""` | 写入 `launch.json` 的 debug 配置类型。留空则使用平台默认值：Windows 上为 `cppvsdbg`，Linux/macOS 上为 `lldb` |
 
 ### configure 模板支持的变量
 
