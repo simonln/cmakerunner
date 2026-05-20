@@ -1,5 +1,11 @@
 # CMake Runner
 
+## V0.3.1 2026-05-20
+
+### Bug Fixes
+* Fix the default debugger configuration
+
+
 ## V0.3.0 2026-05-19
 ### Enhancements
 * GTests support source navigation and per-case debugging
