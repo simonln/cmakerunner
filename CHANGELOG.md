@@ -1,5 +1,9 @@
 # CMake Runner
 
+## V0.3.2 2026-05-25
+### Enhancements
+* Support regex filters for Targets and GTests
+
 ## V0.3.1 2026-05-20
 
 ### Bug Fixes
