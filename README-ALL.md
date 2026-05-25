@@ -115,6 +115,7 @@ Expanding a target runs it with `--gtest_list_tests`. Use the inline `Run` actio
 discovered case to run the same target with `--gtest_filter=<suite.case>`.
 Use `Filter` to choose from the current target, discovered suites, or discovered cases. It matches
 target names, executable names, suite names, case names, or full `suite.case` filters.
+You can also type a regular expression and press Enter to keep every matching GoogleTest visible.
 When a filter is active, the target-level `Run` action runs only the
 visible GoogleTest cases. Use `Clear Filter` to remove the filter, and `Refresh` to clear
 cached discovery results.
@@ -128,6 +129,7 @@ Use `Filter` in the **Targets** view to open a target picker that is auto-filter
 - source file name
 - relative source path
 
+You can also type a regular expression and press Enter to keep every matching target visible.
 Use `Clear Filter` to remove the current filter.
 
 ## Commands

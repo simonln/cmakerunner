@@ -10,7 +10,19 @@ type MockVscode = typeof vscode & {
     readonly createdTreeViews: Map<string, {
       description?: string;
       message?: string;
+      options?: {
+        treeDataProvider?: unknown;
+      };
     }>;
+    setQuickPickController(controller: ((quickPick: {
+      readonly items: readonly vscode.QuickPickItem[];
+      selectedItems: readonly vscode.QuickPickItem[];
+      activeItems: readonly vscode.QuickPickItem[];
+    }, controls: {
+      changeValue(value: string): void;
+      accept(): void;
+      hide(): void;
+    }) => void) | undefined): void;
     reset(): void;
   };
 };
@@ -29,6 +41,41 @@ describe('extension commands', () => {
   const originalShowQuickPick = vscode.window.showQuickPick;
   const originalShowInputBox = vscode.window.showInputBox;
   const originalShowTextDocument = vscode.window.showTextDocument;
+
+  type MockQuickPick = {
+    readonly items: readonly vscode.QuickPickItem[];
+    selectedItems: readonly vscode.QuickPickItem[];
+    activeItems: readonly vscode.QuickPickItem[];
+  };
+
+  const setQuickPickItemSelection = (
+    label: string,
+    onItems?: (items: readonly vscode.QuickPickItem[]) => void,
+  ): void => {
+    mockedVscode.__mock.setQuickPickController((quickPick: MockQuickPick, controls) => {
+      onItems?.(quickPick.items);
+      const item = quickPick.items.find((candidate) => candidate.label === label);
+      (quickPick as { selectedItems: readonly vscode.QuickPickItem[] }).selectedItems = item ? [item] : [];
+      (quickPick as { activeItems: readonly vscode.QuickPickItem[] }).activeItems = item ? [item] : [];
+      controls.accept();
+    });
+  };
+
+  const captureQuickPickItems = (onItems: (items: readonly vscode.QuickPickItem[]) => void): void => {
+    mockedVscode.__mock.setQuickPickController((quickPick: MockQuickPick, controls) => {
+      onItems(quickPick.items);
+      controls.hide();
+    });
+  };
+
+  const setRegexQuickPickInput = (value: string): void => {
+    mockedVscode.__mock.setQuickPickController((quickPick: MockQuickPick, controls) => {
+      controls.changeValue(value);
+      (quickPick as { selectedItems: readonly vscode.QuickPickItem[] }).selectedItems = [];
+      (quickPick as { activeItems: readonly vscode.QuickPickItem[] }).activeItems = [quickPick.items[0]];
+      controls.accept();
+    });
+  };
 
   before(() => {
     fs.mkdirSync(sourceDir, { recursive: true });
@@ -153,11 +200,9 @@ describe('extension commands', () => {
     await activateExtension();
 
     const pickedLabels: string[] = [];
-    (vscode.window as any).showQuickPick = async (items: readonly { label: string }[]) => {
-      const quickPickItems = items as Array<{ label: string }>;
-      pickedLabels.push(...quickPickItems.map((item) => item.label));
-      return quickPickItems.find((item) => item.label === 'demo');
-    };
+    setQuickPickItemSelection('demo', (items) => {
+      pickedLabels.push(...items.map((item) => item.label));
+    });
 
     await vscode.commands.executeCommand('cmakerunner.filterTargets');
 
@@ -171,10 +216,9 @@ describe('extension commands', () => {
     await activateExtension();
 
     const pickedItems: Array<{ label: string; detail?: string }> = [];
-    (vscode.window as any).showQuickPick = async (items: readonly { label: string; detail?: string }[]) => {
+    captureQuickPickItems((items) => {
       pickedItems.push(...items as Array<{ label: string; detail?: string }>);
-      return undefined;
-    };
+    });
 
     await vscode.commands.executeCommand('cmakerunner.filterTargets');
 
@@ -183,6 +227,43 @@ describe('extension commands', () => {
     assert.ok(appItem?.detail?.includes(path.join('src', 'app.cpp')));
     assert.ok(demoItem?.detail?.includes(path.join('src', 'demo.cpp')));
     assert.ok(appItem?.detail?.includes(path.join('src', 'common.cpp')));
+  });
+
+  it('filterTargets applies typed regular expressions to all matching targets', async () => {
+    await activateExtension();
+
+    setRegexQuickPickInput('^(app|demo)$');
+
+    await vscode.commands.executeCommand('cmakerunner.filterTargets');
+
+    const targetsTreeView = mockedVscode.__mock.createdTreeViews.get('cmakerunner.targets') as any;
+    const provider = targetsTreeView?.options.treeDataProvider;
+    const children = await provider.getChildren();
+
+    assert.strictEqual(targetsTreeView?.description, 'Regex: ^(app|demo)$');
+    assert.deepStrictEqual(children.map((item: { label: string }) => item.label), ['app', 'demo']);
+  });
+
+  it('filterTargets warns and keeps the current filter when the typed regex is invalid', async () => {
+    await activateExtension();
+
+    let warning = '';
+    const originalShowWarningMessage = vscode.window.showWarningMessage;
+    (vscode.window as any).showWarningMessage = async (message: string) => {
+      warning = message;
+      return undefined;
+    };
+    setRegexQuickPickInput('[');
+
+    try {
+      await vscode.commands.executeCommand('cmakerunner.filterTargets');
+    } finally {
+      (vscode.window as any).showWarningMessage = originalShowWarningMessage;
+    }
+
+    const targetsTreeView = mockedVscode.__mock.createdTreeViews.get('cmakerunner.targets');
+    assert.ok(warning.includes('Invalid regular expression'));
+    assert.strictEqual(targetsTreeView?.description, undefined);
   });
 
   it('runGTestCase resolves the active source file target', async () => {
@@ -293,12 +374,11 @@ describe('extension commands', () => {
     (vscode.window as any).showQuickPick = async (items: readonly { label: string; target?: unknown }[]) => {
       const quickPickItems = items as Array<{ label: string; target?: unknown }>;
       pickedLabels.push(quickPickItems.map((item) => item.label));
-      if (quickPickItems.some((item) => item.target)) {
-        return quickPickItems.find((item) => item.label === 'app');
-      }
-
-      return quickPickItems.find((item) => item.label === 'MathTest');
+      return quickPickItems.find((item) => item.label === 'app');
     };
+    setQuickPickItemSelection('MathTest', (items) => {
+      pickedLabels.push(items.map((item) => item.label));
+    });
 
     try {
       await vscode.commands.executeCommand('cmakerunner.buildTargetFromCurrentFile');
@@ -317,6 +397,45 @@ describe('extension commands', () => {
 
     await vscode.commands.executeCommand('cmakerunner.clearGTestFilter');
     assert.strictEqual(gtestsTreeView?.description, undefined);
+  });
+
+  it('filterGTests applies typed regular expressions to all matching test cases', async () => {
+    await activateExtension();
+
+    fs.mkdirSync(path.join(fixtureRoot, 'bin'), { recursive: true });
+    fs.writeFileSync(path.join(fixtureRoot, 'bin', 'app'), '');
+
+    const workflowModule = require('../src/services/workflowManager') as typeof import('../src/services/workflowManager');
+    const originalBuildTarget = workflowModule.WorkflowManager.prototype.buildTarget;
+    const originalListGTestCases = workflowModule.WorkflowManager.prototype.listGTestCases;
+
+    workflowModule.WorkflowManager.prototype.buildTarget = async () => {};
+    workflowModule.WorkflowManager.prototype.listGTestCases = async () => [
+      { suite: 'MathTest', name: 'Adds', filter: 'MathTest.Adds' },
+      { suite: 'MathTest', name: 'Divides', filter: 'MathTest.Divides' },
+      { suite: 'StringTest', name: 'Splits', filter: 'StringTest.Splits' },
+    ];
+    (vscode.window as any).showQuickPick = async (items: readonly { label: string; target?: unknown }[]) => {
+      const quickPickItems = items as Array<{ label: string; target?: unknown }>;
+      return quickPickItems.find((item) => item.label === 'app');
+    };
+    setRegexQuickPickInput('^MathTest\\.');
+
+    try {
+      await vscode.commands.executeCommand('cmakerunner.buildTargetFromCurrentFile');
+      await vscode.commands.executeCommand('cmakerunner.filterGTests');
+
+      const gtestsTreeView = mockedVscode.__mock.createdTreeViews.get('cmakerunner.gtests') as any;
+      const provider = gtestsTreeView?.options.treeDataProvider;
+      const [targetItem] = await provider.getChildren();
+      const cases = await provider.getChildren(targetItem);
+
+      assert.strictEqual(gtestsTreeView?.description, 'Regex: ^MathTest\\.');
+      assert.deepStrictEqual(cases.map((item: { label: string }) => item.label), ['Adds', 'Divides']);
+    } finally {
+      workflowModule.WorkflowManager.prototype.buildTarget = originalBuildTarget;
+      workflowModule.WorkflowManager.prototype.listGTestCases = originalListGTestCases;
+    }
   });
 
   it('runGTestCase runs visible filtered cases when invoked from a gtest target', async () => {
@@ -347,12 +466,9 @@ describe('extension commands', () => {
     };
     (vscode.window as any).showQuickPick = async (items: readonly { label: string; target?: unknown }[]) => {
       const quickPickItems = items as Array<{ label: string; target?: unknown }>;
-      if (quickPickItems.some((item) => item.target)) {
-        return quickPickItems.find((item) => item.label === 'app');
-      }
-
-      return quickPickItems.find((item) => item.label === 'MathTest');
+      return quickPickItems.find((item) => item.label === 'app');
     };
+    setQuickPickItemSelection('MathTest');
 
     try {
       await vscode.commands.executeCommand('cmakerunner.buildTargetFromCurrentFile');
@@ -391,13 +507,10 @@ describe('extension commands', () => {
 
     (vscode.window as any).showQuickPick = async (items: readonly { label: string; target?: unknown }[]) => {
       const quickPickItems = items as Array<{ label: string; target?: unknown }>;
-      if (quickPickItems.some((item) => item.target)) {
-        targetPickCount += 1;
-        return quickPickItems.find((item) => item.label === (targetPickCount === 1 ? 'app' : 'demo'));
-      }
-
-      return quickPickItems.find((item) => item.label === 'MathTest');
+      targetPickCount += 1;
+      return quickPickItems.find((item) => item.label === (targetPickCount === 1 ? 'app' : 'demo'));
     };
+    setQuickPickItemSelection('MathTest');
 
     try {
       await vscode.commands.executeCommand('cmakerunner.buildTargetFromCurrentFile');

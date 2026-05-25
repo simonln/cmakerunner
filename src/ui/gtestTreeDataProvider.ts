@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { GTestCaseInfo, TargetInfo } from '../models';
 import { normalizePath } from '../utils';
+import { FilterMatcher, createFilterMatcher } from './filterMatcher';
 
 export class GTestTargetTreeItem extends vscode.TreeItem {
   public constructor(public readonly target: TargetInfo) {
@@ -39,6 +40,7 @@ export class GTestTreeDataProvider implements vscode.TreeDataProvider<Node> {
   private targetItems = new Map<string, GTestTargetTreeItem>();
   private testCasesByTargetId = new Map<string, GTestCaseInfo[]>();
   private filterText = '';
+  private filterIsRegex = false;
   private selectedTargetId?: string;
   private selectedTargetBuilt = false;
 
@@ -76,13 +78,18 @@ export class GTestTreeDataProvider implements vscode.TreeDataProvider<Node> {
     this.onDidChangeTreeDataEmitter.fire();
   }
 
-  public setFilterText(filterText: string): void {
+  public setFilterText(filterText: string, options?: { isRegex?: boolean }): void {
     this.filterText = filterText.trim();
+    this.filterIsRegex = !!this.filterText && options?.isRegex === true;
     this.onDidChangeTreeDataEmitter.fire();
   }
 
   public getFilterText(): string {
     return this.filterText;
+  }
+
+  public isFilterRegex(): boolean {
+    return this.filterIsRegex;
   }
 
   public async getVisibleTargetCount(): Promise<number> {
@@ -154,20 +161,20 @@ export class GTestTreeDataProvider implements vscode.TreeDataProvider<Node> {
       return [];
     }
 
-    const query = this.normalizeFilterQuery(this.filterText);
-    if (!query) {
+    const matcher = this.createFilterMatcher();
+    if (!matcher) {
       return [selectedTarget];
     }
 
     const visibleTargets: TargetInfo[] = [];
     for (const target of [selectedTarget]) {
-      if (this.matchesTarget(target, query)) {
+      if (this.matchesTarget(target, matcher)) {
         visibleTargets.push(target);
         continue;
       }
 
       const testCases = await this.getCachedTestCases(target);
-      if (testCases.some((testCase) => this.matchesTestCase(testCase, query))) {
+      if (testCases.some((testCase) => this.matchesTestCase(testCase, matcher))) {
         visibleTargets.push(target);
       }
     }
@@ -184,24 +191,28 @@ export class GTestTreeDataProvider implements vscode.TreeDataProvider<Node> {
   }
 
   private filterVisibleTestCases(target: TargetInfo, testCases: GTestCaseInfo[]): GTestCaseInfo[] {
-    const query = this.normalizeFilterQuery(this.filterText);
-    if (!query || this.matchesTarget(target, query)) {
+    const matcher = this.createFilterMatcher();
+    if (!matcher || this.matchesTarget(target, matcher)) {
       return testCases;
     }
 
-    return testCases.filter((testCase) => this.matchesTestCase(testCase, query));
+    return testCases.filter((testCase) => this.matchesTestCase(testCase, matcher));
   }
 
-  private matchesTarget(target: TargetInfo, query: string): boolean {
-    return this.normalizeFilterQuery(target.displayName).includes(query)
-      || this.normalizeFilterQuery(target.name).includes(query)
-      || this.normalizeFilterQuery(path.basename(target.guessedExecutablePath)).includes(query);
+  private matchesTarget(target: TargetInfo, matcher: FilterMatcher): boolean {
+    return matcher.matches(target.displayName)
+      || matcher.matches(target.name)
+      || matcher.matches(path.basename(target.guessedExecutablePath));
   }
 
-  private matchesTestCase(testCase: GTestCaseInfo, query: string): boolean {
-    return this.normalizeFilterQuery(testCase.suite).includes(query)
-      || this.normalizeFilterQuery(testCase.name).includes(query)
-      || this.normalizeFilterQuery(testCase.filter).includes(query);
+  private matchesTestCase(testCase: GTestCaseInfo, matcher: FilterMatcher): boolean {
+    return matcher.matches(testCase.suite)
+      || matcher.matches(testCase.name)
+      || matcher.matches(testCase.filter);
+  }
+
+  private createFilterMatcher(): FilterMatcher | undefined {
+    return createFilterMatcher(this.filterText, this.filterIsRegex, (value) => this.normalizeFilterQuery(value));
   }
 
   private normalizeFilterQuery(value: string): string {

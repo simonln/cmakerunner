@@ -4,10 +4,12 @@ const path = require('path');
 const projectRoot = process.cwd();
 const registeredCommands = new Map();
 const createdTreeViews = new Map();
+let quickPickController;
 
 function resetMockState() {
   registeredCommands.clear();
   createdTreeViews.clear();
+  quickPickController = undefined;
   vscode.window.activeTextEditor = undefined;
 }
 
@@ -80,6 +82,51 @@ const vscode = {
     showErrorMessage: async (msg) => undefined,
     showQuickPick: async (items) => items?.[0],
     showInputBox: async () => undefined,
+    createQuickPick: () => {
+      const changeValueListeners = new Set();
+      const acceptListeners = new Set();
+      const hideListeners = new Set();
+      const quickPick = {
+        title: undefined,
+        value: '',
+        placeholder: undefined,
+        ignoreFocusOut: false,
+        matchOnDescription: false,
+        matchOnDetail: false,
+        items: [],
+        selectedItems: [],
+        activeItems: [],
+        onDidChangeValue: (listener) => {
+          changeValueListeners.add(listener);
+          return { dispose: () => changeValueListeners.delete(listener) };
+        },
+        onDidAccept: (listener) => {
+          acceptListeners.add(listener);
+          return { dispose: () => acceptListeners.delete(listener) };
+        },
+        onDidHide: (listener) => {
+          hideListeners.add(listener);
+          return { dispose: () => hideListeners.delete(listener) };
+        },
+        show: () => {
+          quickPickController?.(quickPick, {
+            changeValue: (value) => {
+              quickPick.value = value;
+              changeValueListeners.forEach((listener) => listener(value));
+            },
+            accept: () => {
+              acceptListeners.forEach((listener) => listener());
+            },
+            hide: () => {
+              hideListeners.forEach((listener) => listener());
+            },
+          });
+        },
+        hide: () => {},
+        dispose: () => {},
+      };
+      return quickPick;
+    },
     showTextDocument: async (document) => ({
       document,
       selection: undefined,
@@ -198,6 +245,9 @@ const vscode = {
   __mock: {
     registeredCommands,
     createdTreeViews,
+    setQuickPickController: (controller) => {
+      quickPickController = controller;
+    },
     reset: resetMockState,
   },
 };
