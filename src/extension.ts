@@ -8,6 +8,7 @@ import { PresetProvider } from './services/presetProvider';
 import { TaskExecutionEngine } from './services/taskExecutionEngine';
 import { findGTestSourceLocation } from './services/gtestSourceLocator';
 import { WorkflowManager } from './services/workflowManager';
+import { getRegexFilterError } from './ui/filterMatcher';
 import { GTestCaseTreeItem, GTestTargetTreeItem, GTestTreeDataProvider } from './ui/gtestTreeDataProvider';
 import { PresetTreeDataProvider, PresetTreeItem } from './ui/presetTreeDataProvider';
 import { SourceTreeItem, TargetTreeDataProvider, TargetTreeItem } from './ui/targetTreeDataProvider';
@@ -15,12 +16,19 @@ import { relativeDisplayPath } from './utils';
 
 interface TargetQuickPickItem extends vscode.QuickPickItem {
   readonly target?: TargetInfo;
-  readonly action?: 'customTextFilter';
 }
 
 interface GTestQuickPickItem extends vscode.QuickPickItem {
   readonly filterText: string;
 }
+
+interface RegexFilterQuickPickItem extends vscode.QuickPickItem {
+  readonly regexText: string;
+}
+
+type RegexFilterPick<T extends vscode.QuickPickItem> =
+  | { readonly type: 'item'; readonly item: T }
+  | { readonly type: 'regex'; readonly filterText: string };
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -64,21 +72,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const updateTargetViewState = async (): Promise<void> => {
     const filterText = targetTreeDataProvider.getFilterText();
-    targetsTreeView.description = filterText ? `Filter: ${filterText}` : undefined;
+    targetsTreeView.description = filterText
+      ? `${targetTreeDataProvider.isFilterRegex() ? 'Regex' : 'Filter'}: ${filterText}`
+      : undefined;
     targetsTreeView.message = filterText && targetTreeDataProvider.getVisibleTargetCount() === 0
       ? 'No executable target matches the current filter.'
       : undefined;
     await vscode.commands.executeCommand('setContext', 'cmakerunner.targetsFilterActive', !!filterText);
   };
 
-  const applyTargetFilter = async (filterText: string): Promise<void> => {
-    targetTreeDataProvider.setFilterText(filterText);
+  const applyTargetFilter = async (filterText: string, options?: { isRegex?: boolean }): Promise<void> => {
+    targetTreeDataProvider.setFilterText(filterText, options);
     await updateTargetViewState();
   };
 
   const updateGTestViewState = async (): Promise<void> => {
     const filterText = gtestTreeDataProvider.getFilterText();
-    gtestsTreeView.description = filterText ? `Filter: ${filterText}` : undefined;
+    gtestsTreeView.description = filterText
+      ? `${gtestTreeDataProvider.isFilterRegex() ? 'Regex' : 'Filter'}: ${filterText}`
+      : undefined;
     const stateMessage = gtestTreeDataProvider.getMessage();
     gtestsTreeView.message = stateMessage ?? (
       filterText && await gtestTreeDataProvider.getVisibleTargetCount() === 0
@@ -88,8 +100,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     await vscode.commands.executeCommand('setContext', 'cmakerunner.gtestsFilterActive', !!filterText);
   };
 
-  const applyGTestFilter = async (filterText: string): Promise<void> => {
-    gtestTreeDataProvider.setFilterText(filterText);
+  const applyGTestFilter = async (filterText: string, options?: { isRegex?: boolean }): Promise<void> => {
+    gtestTreeDataProvider.setFilterText(filterText, options);
     await updateGTestViewState();
   };
 
@@ -358,6 +370,115 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     });
   };
 
+  const pickRegexFilter = async <T extends vscode.QuickPickItem>(
+    items: readonly T[],
+    options: {
+      readonly title: string;
+      readonly placeHolder: string;
+      readonly regexDetail: string;
+      readonly matchOnDescription?: boolean;
+      readonly matchOnDetail?: boolean;
+    },
+  ): Promise<RegexFilterPick<T> | undefined> => {
+    return new Promise((resolve) => {
+      const quickPick = vscode.window.createQuickPick<T | RegexFilterQuickPickItem>();
+      let settled = false;
+
+      const finish = (result: RegexFilterPick<T> | undefined): void => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        resolve(result);
+        quickPick.hide();
+        quickPick.dispose();
+      };
+
+      const createRegexItem = (regexText: string): RegexFilterQuickPickItem => ({
+        label: `$(regex) Apply regex: ${regexText}`,
+        description: 'Press Enter to show all matches',
+        detail: options.regexDetail,
+        alwaysShow: true,
+        regexText,
+      });
+
+      const updateItems = (value: string): void => {
+        const regexText = value.trim();
+        if (!regexText) {
+          quickPick.items = [...items];
+          return;
+        }
+
+        const regexItem = createRegexItem(regexText);
+        quickPick.items = [regexItem, ...items];
+        quickPick.activeItems = [regexItem];
+      };
+
+      quickPick.title = options.title;
+      quickPick.value = '';
+      quickPick.placeholder = options.placeHolder;
+      quickPick.ignoreFocusOut = true;
+      quickPick.matchOnDescription = options.matchOnDescription ?? false;
+      quickPick.matchOnDetail = options.matchOnDetail ?? false;
+      quickPick.items = [...items];
+      quickPick.onDidChangeValue(updateItems);
+      quickPick.onDidAccept(() => {
+        const pickedItem = quickPick.selectedItems[0] ?? quickPick.activeItems[0];
+        if (!pickedItem) {
+          finish(undefined);
+          return;
+        }
+
+        if ('regexText' in pickedItem) {
+          const error = getRegexFilterError(pickedItem.regexText);
+          if (error) {
+            void vscode.window.showWarningMessage(`Invalid regular expression: ${error}`);
+            finish(undefined);
+            return;
+          }
+
+          finish({
+            type: 'regex',
+            filterText: pickedItem.regexText,
+          });
+          return;
+        }
+
+        finish({
+          type: 'item',
+          item: pickedItem as T,
+        });
+      });
+      quickPick.onDidHide(() => finish(undefined));
+      quickPick.show();
+    });
+  };
+
+  const pickTargetFilter = async (): Promise<RegexFilterPick<TargetQuickPickItem> | undefined> => {
+    const targets = getAutoFilteredTargets(false);
+    if (!ensureDiscoveredTargets(targets)) {
+      return undefined;
+    }
+
+    const quickPickSourceDir = currentPreset?.sourceDir ?? workspaceRoot;
+    const items: TargetQuickPickItem[] = targets.map((target) => ({
+      label: target.displayName,
+      description: path.basename(target.guessedExecutablePath),
+      detail: `${target.sourceFiles.length} source file${target.sourceFiles.length === 1 ? '' : 's'}: ${target.sourceFiles
+        .map((sourcePath) => relativeDisplayPath(sourcePath, quickPickSourceDir))
+        .join(', ')}`,
+      target,
+    }));
+
+    return pickRegexFilter(items, {
+      title: 'Filter Targets',
+      placeHolder: 'Example: app, main\\.cpp, ^Test.*',
+      regexDetail: 'Match target names, executable names, and source paths',
+      matchOnDescription: true,
+      matchOnDetail: true,
+    });
+  };
+
   const buildGTestFilterItems = (target: TargetInfo, testCases: readonly GTestCaseInfo[]): GTestQuickPickItem[] => {
     const suites = new Map<string, GTestCaseInfo[]>();
     for (const testCase of testCases) {
@@ -387,7 +508,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     ];
   };
 
-  const pickGTestFilter = async (): Promise<GTestQuickPickItem | undefined> => {
+  const pickGTestFilter = async (): Promise<RegexFilterPick<GTestQuickPickItem> | undefined> => {
     const stateMessage = gtestTreeDataProvider.getMessage();
     if (stateMessage) {
       void vscode.window.showWarningMessage(stateMessage);
@@ -406,9 +527,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       return undefined;
     }
 
-    return vscode.window.showQuickPick(buildGTestFilterItems(target, testCases), {
-      prompt: 'Filter GoogleTest targets, suites, or cases',
-      placeHolder: 'Example: gtest, MathTest, Adds, MathTest.Adds',
+    return pickRegexFilter(buildGTestFilterItems(target, testCases), {
+      title: 'Filter GTests',
+      placeHolder: 'Example: MathTest, Math.*Adds, ^StringTest\\.',
+      regexDetail: 'Match target names, suites, case names, and full filters',
       matchOnDescription: true,
       matchOnDetail: true,
     });
@@ -458,14 +580,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await refresh(currentPreset?.name);
     }),
     vscode.commands.registerCommand('cmakerunner.filterTargets', async () => {
-      const pick = await pickTarget();
+      const pick = await pickTargetFilter();
       if (!pick) {
         return;
       }
 
-      if (pick.target) {
-        await applyTargetFilter(pick.target.displayName);
-        await selectTarget(pick.target);
+      if (pick.type === 'regex') {
+        await applyTargetFilter(pick.filterText, { isRegex: true });
+        return;
+      }
+
+      if (pick.item.target) {
+        await applyTargetFilter(pick.item.target.displayName);
+        await selectTarget(pick.item.target);
         return;
       }
     }),
@@ -482,7 +609,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
 
-      await applyGTestFilter(pick.filterText);
+      if (pick.type === 'regex') {
+        await applyGTestFilter(pick.filterText, { isRegex: true });
+        return;
+      }
+
+      await applyGTestFilter(pick.item.filterText);
     }),
     vscode.commands.registerCommand('cmakerunner.clearGTestFilter', async () => {
       await applyGTestFilter('');

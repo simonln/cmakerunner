@@ -112,7 +112,8 @@ code --install-extension cmakerunner-0.x.x.vsix
 `Run` 操作，会用 `--gtest_filter=<suite.case>` 只运行该用例。
 使用 `Filter` 会展示当前目标、已发现的 suite 和已发现的 case，并可按目标名、
 可执行文件名、suite 名、case 名或完整 `suite.case` 过滤。过滤生效时，目标右侧的
-`Run` 操作只会运行当前可见的 GoogleTest 用例；使用 `Clear Filter` 清除过滤；使用 `Refresh`
+`Run` 操作只会运行当前可见的 GoogleTest 用例。你也可以直接输入正则表达式并回车，
+保留所有匹配的 GoogleTest；使用 `Clear Filter` 清除过滤；使用 `Refresh`
 清除已缓存的用例发现结果。
 
 ### 7. 过滤目标
@@ -124,6 +125,7 @@ code --install-extension cmakerunner-0.x.x.vsix
 - 源码文件名
 - 相对源码路径
 
+你也可以直接输入正则表达式并回车，保留所有匹配的目标。
 使用 `Clear Filter` 可清除当前过滤条件。
 
 ## 命令列表

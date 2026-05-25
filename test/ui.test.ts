@@ -182,6 +182,41 @@ describe('ui', () => {
       assert.strictEqual(provider.getVisibleTargetCount(), 1);
     });
 
+    it('should filter targets with a typed regular expression', async () => {
+      const provider = new TargetTreeDataProvider();
+      const targets: TargetInfo[] = [
+        {
+          id: 'myapp',
+          name: 'myapp',
+          displayName: 'My App',
+          sourceFiles: ['/src/app/main.cpp'],
+          guessedExecutablePath: '/build/myapp',
+        },
+        {
+          id: 'myservice',
+          name: 'myservice',
+          displayName: 'My Service',
+          sourceFiles: ['/src/service/main.cpp'],
+          guessedExecutablePath: '/build/myservice',
+        },
+        {
+          id: 'other',
+          name: 'other',
+          displayName: 'Other',
+          sourceFiles: ['/src/other.cpp'],
+          guessedExecutablePath: '/build/other',
+        },
+      ];
+
+      provider.setTargets(targets, '/src', undefined);
+      provider.setFilterText('^my(app|service)$', { isRegex: true });
+      const children = await provider.getChildren();
+
+      assert.strictEqual(provider.isFilterRegex(), true);
+      assert.strictEqual(provider.getVisibleTargetCount(), 2);
+      assert.deepStrictEqual(children.map((item) => item.label), ['My App', 'My Service']);
+    });
+
     it('should clear filter', () => {
       const provider = new TargetTreeDataProvider();
       const targets: TargetInfo[] = [
@@ -195,9 +230,10 @@ describe('ui', () => {
       ];
 
       provider.setTargets(targets, '/src', undefined);
-      provider.setFilterText('myapp');
+      provider.setFilterText('myapp', { isRegex: true });
       provider.setFilterText('');
       assert.strictEqual(provider.getVisibleTargetCount(), 1);
+      assert.strictEqual(provider.isFilterRegex(), false);
     });
 
     it('should find target item by id', () => {
@@ -456,6 +492,23 @@ describe('ui', () => {
       assert.strictEqual(await provider.getVisibleTargetCount(), 1);
     });
 
+    it('should filter gtest cases with a typed regular expression', async () => {
+      const provider = new GTestTreeDataProvider(async () => [
+        { suite: 'MathTest', name: 'Adds', filter: 'MathTest.Adds' },
+        { suite: 'MathTest', name: 'Divides', filter: 'MathTest.Divides' },
+        { suite: 'StringTest', name: 'Splits', filter: 'StringTest.Splits' },
+      ]);
+      provider.setTargets([target]);
+      provider.setSelectedTarget(target, true);
+
+      provider.setFilterText('^MathTest\\.(Adds|Divides)$', { isRegex: true });
+      const [targetItem] = await provider.getChildren();
+      const cases = await provider.getChildren(targetItem);
+
+      assert.strictEqual(provider.isFilterRegex(), true);
+      assert.deepStrictEqual(cases.map((item) => item.label), ['Adds', 'Divides']);
+    });
+
     it('should expose visible gtest cases for filtered target runs', async () => {
       const provider = new GTestTreeDataProvider(async () => [
         { suite: 'MathTest', name: 'Adds', filter: 'MathTest.Adds' },
@@ -472,10 +525,11 @@ describe('ui', () => {
 
     it('should clear gtest filter text', () => {
       const provider = new GTestTreeDataProvider(async () => []);
-      provider.setFilterText('math');
+      provider.setFilterText('math', { isRegex: true });
       assert.strictEqual(provider.getFilterText(), 'math');
       provider.setFilterText('');
       assert.strictEqual(provider.getFilterText(), '');
+      assert.strictEqual(provider.isFilterRegex(), false);
     });
 
     it('should stay empty until a built target is selected', async () => {

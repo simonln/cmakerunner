@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { TargetInfo } from '../models';
 import { normalizePath, relativeDisplayPath } from '../utils';
+import { FilterMatcher, createFilterMatcher } from './filterMatcher';
 
 export class TargetTreeItem extends vscode.TreeItem {
   public constructor(public readonly target: TargetInfo) {
@@ -42,6 +43,7 @@ export class TargetTreeDataProvider implements vscode.TreeDataProvider<Node> {
   private sourceDir = '';
   private activeSourcePath?: string;
   private filterText = '';
+  private filterIsRegex = false;
   private targetItems = new Map<string, TargetTreeItem>();
   private sourceItems = new Map<string, SourceTreeItem>();
 
@@ -61,14 +63,19 @@ export class TargetTreeDataProvider implements vscode.TreeDataProvider<Node> {
     this.onDidChangeTreeDataEmitter.fire();
   }
 
-  public setFilterText(filterText: string): void {
+  public setFilterText(filterText: string, options?: { isRegex?: boolean }): void {
     this.filterText = filterText.trim();
+    this.filterIsRegex = !!this.filterText && options?.isRegex === true;
     this.rebuildCache();
     this.onDidChangeTreeDataEmitter.fire();
   }
 
   public getFilterText(): string {
     return this.filterText;
+  }
+
+  public isFilterRegex(): boolean {
+    return this.filterIsRegex;
   }
 
   public getVisibleTargetCount(): number {
@@ -120,7 +127,8 @@ export class TargetTreeDataProvider implements vscode.TreeDataProvider<Node> {
   }
 
   private rebuildCache(): void {
-    this.filteredTargets = this.targets.filter((target) => this.matchesTarget(target));
+    const matcher = this.createFilterMatcher();
+    this.filteredTargets = this.targets.filter((target) => this.matchesTarget(target, matcher));
     this.targetItems = new Map(this.filteredTargets.map((target) => [target.id, new TargetTreeItem(target)]));
     this.sourceItems = new Map();
 
@@ -134,33 +142,36 @@ export class TargetTreeDataProvider implements vscode.TreeDataProvider<Node> {
     }
   }
 
-  private matchesTarget(target: TargetInfo): boolean {
-    const query = this.normalizeFilterQuery(this.filterText);
-    if (!query) {
+  private matchesTarget(target: TargetInfo, matcher: FilterMatcher | undefined): boolean {
+    if (!matcher) {
       return true;
     }
 
-    return this.matchesTargetName(target, query) || target.sourceFiles.some((sourcePath) => this.matchesSourcePath(sourcePath, query));
+    return this.matchesTargetName(target, matcher) || target.sourceFiles.some((sourcePath) => this.matchesSourcePath(sourcePath, matcher));
   }
 
   private getVisibleSourceFiles(target: TargetInfo): string[] {
-    const query = this.normalizeFilterQuery(this.filterText);
-    if (!query || this.matchesTargetName(target, query)) {
+    const matcher = this.createFilterMatcher();
+    if (!matcher || this.matchesTargetName(target, matcher)) {
       return target.sourceFiles;
     }
 
-    return target.sourceFiles.filter((sourcePath) => this.matchesSourcePath(sourcePath, query));
+    return target.sourceFiles.filter((sourcePath) => this.matchesSourcePath(sourcePath, matcher));
   }
 
-  private matchesTargetName(target: TargetInfo, query: string): boolean {
-    return this.normalizeFilterQuery(target.displayName).includes(query)
-      || this.normalizeFilterQuery(target.name).includes(query)
-      || this.normalizeFilterQuery(path.basename(target.guessedExecutablePath)).includes(query);
+  private matchesTargetName(target: TargetInfo, matcher: FilterMatcher): boolean {
+    return matcher.matches(target.displayName)
+      || matcher.matches(target.name)
+      || matcher.matches(path.basename(target.guessedExecutablePath));
   }
 
-  private matchesSourcePath(sourcePath: string, query: string): boolean {
-    return this.normalizeFilterQuery(path.basename(sourcePath)).includes(query)
-      || this.normalizeFilterQuery(relativeDisplayPath(sourcePath, this.sourceDir)).includes(query);
+  private matchesSourcePath(sourcePath: string, matcher: FilterMatcher): boolean {
+    return matcher.matches(path.basename(sourcePath))
+      || matcher.matches(relativeDisplayPath(sourcePath, this.sourceDir));
+  }
+
+  private createFilterMatcher(): FilterMatcher | undefined {
+    return createFilterMatcher(this.filterText, this.filterIsRegex, (value) => this.normalizeFilterQuery(value));
   }
 
   private normalizeFilterQuery(value: string): string {
