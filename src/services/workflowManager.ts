@@ -1,7 +1,7 @@
 import * as path from 'path';
 import { execFile } from 'child_process';
 import * as vscode from 'vscode';
-import { GTestCaseInfo, PresetInfo, TargetInfo } from '../models';
+import { GTestCaseInfo, GTestRunResult, GTestRunSummary, PresetInfo, TargetInfo } from '../models';
 import { quoteForShell } from '../utils';
 import { ConfigurationManager } from './configurationManager';
 import { OutputLogger } from './outputLogger';
@@ -91,7 +91,8 @@ export class WorkflowManager {
     target: TargetInfo,
     buildFirst = true,
     selectedTestCase?: GTestCaseInfo,
-  ): Promise<void> {
+    onCaseResult?: (result: GTestRunResult) => void,
+  ): Promise<GTestRunSummary | undefined> {
     if (buildFirst) {
       const buildVariables = this.createVariables(preset, target);
       const built = await this.executeBuildStep({
@@ -102,23 +103,23 @@ export class WorkflowManager {
         failureVerb: 'Build',
       });
       if (!built) {
-        return;
+        return undefined;
       }
     }
 
     const testCases = selectedTestCase ? [selectedTestCase] : await this.listGTestCases(preset, target);
     if (!testCases) {
-      return;
+      return undefined;
     }
 
     if (!selectedTestCase && testCases.length === 0) {
       void vscode.window.showWarningMessage(`No GoogleTest cases were found in ${target.displayName}.`);
-      return;
+      return undefined;
     }
 
     const testCase = selectedTestCase ?? await this.pickGTestCase(testCases);
     if (!testCase) {
-      return;
+      return undefined;
     }
 
     const runVariables = this.createVariables(preset, target);
@@ -126,7 +127,16 @@ export class WorkflowManager {
     const runCommand = `${this.configurationManager.getRunCommand(runVariables)} ${gtestFilterArgument}`;
     const runLabel = `Run ${testCase.filter} [${preset.name}]`;
     this.logger.info(`Launching GoogleTest case ${testCase.filter} for target ${target.name}`);
-    await this.taskExecutionEngine.executeRun(runCommand, runLabel, preset.binaryDir);
+    const result = await this.taskExecutionEngine.executeRun(runCommand, runLabel, preset.binaryDir);
+    if (typeof result.exitCode !== 'number') {
+      this.logger.warn(`GoogleTest run stopped after ${testCase.filter} because no exit code was reported.`);
+      void vscode.window.showWarningMessage(`GoogleTest run stopped after ${testCase.filter}; no exit code was reported.`);
+      return { target, results: [], stopped: true };
+    }
+
+    const runResult = this.createGTestRunResult(testCase, result.exitCode);
+    onCaseResult?.(runResult);
+    return { target, results: [runResult] };
   }
 
   public async runGTestCases(
@@ -134,11 +144,12 @@ export class WorkflowManager {
     target: TargetInfo,
     testCases: readonly GTestCaseInfo[],
     buildFirst = true,
-  ): Promise<void> {
+    onCaseResult?: (result: GTestRunResult) => void,
+  ): Promise<GTestRunSummary | undefined> {
     const uniqueTestCases = this.getUniqueGTestCases(testCases);
     if (uniqueTestCases.length === 0) {
       void vscode.window.showWarningMessage(`No GoogleTest cases were selected in ${target.displayName}.`);
-      return;
+      return undefined;
     }
 
     if (buildFirst) {
@@ -151,18 +162,19 @@ export class WorkflowManager {
         failureVerb: 'Build',
       });
       if (!built) {
-        return;
+        return undefined;
       }
     }
 
-    await this.runGTestCasesSequentially(preset, target, uniqueTestCases);
+    return this.runGTestCasesSequentially(preset, target, uniqueTestCases, onCaseResult);
   }
 
   public async runAllGTestCases(
     preset: PresetInfo,
     target: TargetInfo,
     buildFirst = true,
-  ): Promise<void> {
+    onCaseResult?: (result: GTestRunResult) => void,
+  ): Promise<GTestRunSummary | undefined> {
     if (buildFirst) {
       const buildVariables = this.createVariables(preset, target);
       const built = await this.executeBuildStep({
@@ -173,21 +185,21 @@ export class WorkflowManager {
         failureVerb: 'Build',
       });
       if (!built) {
-        return;
+        return undefined;
       }
     }
 
     const testCases = await this.listGTestCases(preset, target);
     if (!testCases) {
-      return;
+      return undefined;
     }
 
     if (testCases.length === 0) {
       void vscode.window.showWarningMessage(`No GoogleTest cases were found in ${target.displayName}.`);
-      return;
+      return undefined;
     }
 
-    await this.runGTestCasesSequentially(preset, target, testCases);
+    return this.runGTestCasesSequentially(preset, target, testCases, onCaseResult);
   }
 
   public async debugGTestCase(
@@ -363,11 +375,13 @@ export class WorkflowManager {
     preset: PresetInfo,
     target: TargetInfo,
     testCases: readonly GTestCaseInfo[],
-  ): Promise<void> {
+    onCaseResult?: (result: GTestRunResult) => void,
+  ): Promise<GTestRunSummary> {
     const uniqueTestCases = this.getUniqueGTestCases(testCases);
     const runVariables = this.createVariables(preset, target);
     const baseRunCommand = this.configurationManager.getRunCommand(runVariables);
     const failures: GTestRunFailure[] = [];
+    const results: GTestRunResult[] = [];
 
     for (let index = 0; index < uniqueTestCases.length; index += 1) {
       const testCase = uniqueTestCases[index];
@@ -382,8 +396,12 @@ export class WorkflowManager {
       if (typeof result.exitCode !== 'number') {
         this.logger.warn(`GoogleTest run stopped after ${testCase.filter} because no exit code was reported.`);
         void vscode.window.showWarningMessage(`GoogleTest run stopped after ${testCase.filter}; no exit code was reported.`);
-        return;
+        return { target, results, stopped: true };
       }
+
+      const runResult = this.createGTestRunResult(testCase, result.exitCode);
+      results.push(runResult);
+      onCaseResult?.(runResult);
 
       if (result.exitCode !== 0) {
         failures.push({ filter: testCase.filter, exitCode: result.exitCode });
@@ -392,6 +410,15 @@ export class WorkflowManager {
     }
 
     this.reportGTestRunFailures(target, failures, uniqueTestCases.length);
+    return { target, results };
+  }
+
+  private createGTestRunResult(testCase: GTestCaseInfo, exitCode: number): GTestRunResult {
+    return {
+      testCase,
+      exitCode,
+      status: exitCode === 0 ? 'passed' : 'failed',
+    };
   }
 
   private getUniqueGTestCases(testCases: readonly GTestCaseInfo[]): GTestCaseInfo[] {

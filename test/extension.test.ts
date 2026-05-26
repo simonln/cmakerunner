@@ -274,6 +274,7 @@ describe('extension commands', () => {
     const originalRunGTestCase = workflowModule.WorkflowManager.prototype.runGTestCase;
     workflowModule.WorkflowManager.prototype.runGTestCase = async (_preset, target) => {
       gtestTargetName = target.name;
+      return undefined;
     };
 
     try {
@@ -460,9 +461,11 @@ describe('extension commands', () => {
     ];
     workflowModule.WorkflowManager.prototype.runGTestCases = async (_preset, _target, testCases) => {
       filters = testCases.map((testCase) => testCase.filter);
+      return undefined;
     };
     workflowModule.WorkflowManager.prototype.runAllGTestCases = async () => {
       ranAll = true;
+      return undefined;
     };
     (vscode.window as any).showQuickPick = async (items: readonly { label: string; target?: unknown }[]) => {
       const quickPickItems = items as Array<{ label: string; target?: unknown }>;

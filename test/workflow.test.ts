@@ -367,16 +367,29 @@ describe('workflow manager', () => {
 
     try {
       const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
-      await manager.runGTestCases(preset, target, [
+      const streamedResults: string[] = [];
+      const result = await manager.runGTestCases(preset, target, [
         { suite: 'SuiteA', name: 'TestOne', filter: 'SuiteA.TestOne' },
         { suite: 'SuiteA', name: 'TestTwo', filter: 'SuiteA.TestTwo' },
         { suite: 'SuiteA', name: 'TestThree', filter: 'SuiteA.TestThree' },
-      ], false);
+      ], false, (runResult) => {
+        streamedResults.push(`${runResult.testCase.filter}:${runResult.status}:${runResult.exitCode}`);
+      });
 
       assert.deepStrictEqual(runCommands, [
         '/tmp/build/debug/app --gtest_filter=SuiteA.TestOne',
         '/tmp/build/debug/app --gtest_filter=SuiteA.TestTwo',
         '/tmp/build/debug/app --gtest_filter=SuiteA.TestThree',
+      ]);
+      assert.deepStrictEqual(result?.results.map((runResult) => `${runResult.testCase.filter}:${runResult.status}`), [
+        'SuiteA.TestOne:failed',
+        'SuiteA.TestTwo:passed',
+        'SuiteA.TestThree:failed',
+      ]);
+      assert.deepStrictEqual(streamedResults, [
+        'SuiteA.TestOne:failed:1',
+        'SuiteA.TestTwo:passed:0',
+        'SuiteA.TestThree:failed:2',
       ]);
       assert.ok(shown.includes('2 of 3 GoogleTest cases failed'));
       assert.ok(deps.calls.some((call) => call.includes('continuing with remaining cases')));
