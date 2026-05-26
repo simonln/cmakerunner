@@ -1,5 +1,10 @@
 # CMake Runner
 
+## V0.3.3 2026-05-26
+### Enhancements
+Continue running remaining GTest cases after failures
+
+
 ## V0.3.2 2026-05-25
 ### Enhancements
 * Support regex filters for Targets and GTests
