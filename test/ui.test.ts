@@ -433,6 +433,38 @@ describe('ui', () => {
       assert.ok(cases[0] instanceof GTestCaseTreeItem);
       assert.strictEqual(cases[0].contextValue, 'gtestCase');
       assert.strictEqual(cases[0].command?.command, 'cmakerunner.openGTestCaseSource');
+      assert.strictEqual((cases[0].iconPath as any).id, 'testing-unset-icon');
+    });
+
+    it('should record gtest run results and show pass/fail icons', async () => {
+      const provider = new GTestTreeDataProvider(async () => [
+        { suite: 'MathTest', name: 'Adds', filter: 'MathTest.Adds' },
+        { suite: 'MathTest', name: 'Divides', filter: 'MathTest.Divides' },
+        { suite: 'StringTest', name: 'Splits', filter: 'StringTest.Splits' },
+      ]);
+      provider.setTargets([target]);
+      provider.setSelectedTarget(target, true);
+
+      provider.recordRunResults(target, [
+        { testCase: { suite: 'MathTest', name: 'Adds', filter: 'MathTest.Adds' }, status: 'passed', exitCode: 0 },
+        { testCase: { suite: 'MathTest', name: 'Divides', filter: 'MathTest.Divides' }, status: 'failed', exitCode: 1 },
+      ]);
+      const [targetItem] = await provider.getChildren();
+      const cases = await provider.getChildren(targetItem);
+
+      assert.deepStrictEqual(cases.map((item) => (item.iconPath as any).id), [
+        'testing-passed-icon',
+        'testing-failed-icon',
+        'testing-unset-icon',
+      ]);
+
+      provider.clearRunResults(target, [{ suite: 'MathTest', name: 'Divides', filter: 'MathTest.Divides' }]);
+      const updatedCases = await provider.getChildren(targetItem);
+      assert.deepStrictEqual(updatedCases.map((item) => (item.iconPath as any).id), [
+        'testing-passed-icon',
+        'testing-unset-icon',
+        'testing-unset-icon',
+      ]);
     });
 
     it('should cache discovered cases until refresh', async () => {

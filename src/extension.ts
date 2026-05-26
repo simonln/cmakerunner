@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { GTestCaseInfo, PresetInfo, TargetInfo } from './models';
+import { GTestCaseInfo, GTestRunResult, PresetInfo, TargetInfo } from './models';
 import { ConfigurationManager } from './services/configurationManager';
 import { MappingEngine } from './services/mappingEngine';
 import { OutputLogger } from './services/outputLogger';
@@ -103,6 +103,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const applyGTestFilter = async (filterText: string, options?: { isRegex?: boolean }): Promise<void> => {
     gtestTreeDataProvider.setFilterText(filterText, options);
     await updateGTestViewState();
+  };
+
+  const recordGTestRunResult = (target: TargetInfo) => (result: GTestRunResult): void => {
+    gtestTreeDataProvider.recordRunResults(target, [result]);
   };
 
   let presets: PresetInfo[] = [];
@@ -761,7 +765,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
       if (item instanceof GTestCaseTreeItem) {
         await updateGTestSelection(item.target);
-        await workflowManager.runGTestCase(preset, item.target, true, item.testCase);
+        gtestTreeDataProvider.clearRunResults(item.target, [item.testCase]);
+        await workflowManager.runGTestCase(
+          preset,
+          item.target,
+          true,
+          item.testCase,
+          recordGTestRunResult(item.target),
+        );
         await updateGTestSelection(item.target);
         return;
       }
@@ -770,9 +781,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await updateGTestSelection(item.target);
         if (gtestTreeDataProvider.getFilterText()) {
           const testCases = await gtestTreeDataProvider.getVisibleTestCases(item.target);
-          await workflowManager.runGTestCases(preset, item.target, testCases);
+          gtestTreeDataProvider.clearRunResults(item.target, testCases);
+          await workflowManager.runGTestCases(
+            preset,
+            item.target,
+            testCases,
+            true,
+            recordGTestRunResult(item.target),
+          );
         } else {
-          await workflowManager.runAllGTestCases(preset, item.target);
+          gtestTreeDataProvider.clearRunResults(item.target);
+          await workflowManager.runAllGTestCases(
+            preset,
+            item.target,
+            true,
+            recordGTestRunResult(item.target),
+          );
         }
         await updateGTestSelection(item.target);
         return;
@@ -784,7 +808,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
 
       await selectTarget(target);
-      await workflowManager.runGTestCase(preset, target);
+      await workflowManager.runGTestCase(preset, target, true, undefined, recordGTestRunResult(target));
       await updateGTestSelection(target);
     }),
     vscode.commands.registerCommand('cmakerunner.debugGTestCase', async (item?: GTestCaseTreeItem) => {

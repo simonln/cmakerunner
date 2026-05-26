@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { GTestCaseInfo, TargetInfo } from '../models';
+import { GTestCaseInfo, GTestRunResult, GTestRunStatus, TargetInfo } from '../models';
 import { normalizePath } from '../utils';
 import { FilterMatcher, createFilterMatcher } from './filterMatcher';
 
@@ -18,18 +18,31 @@ export class GTestCaseTreeItem extends vscode.TreeItem {
   public constructor(
     public readonly target: TargetInfo,
     public readonly testCase: GTestCaseInfo,
+    public readonly runStatus?: GTestRunStatus,
   ) {
     super(testCase.name, vscode.TreeItemCollapsibleState.None);
     this.description = testCase.suite;
-    this.tooltip = testCase.filter;
+    this.tooltip = runStatus ? `${testCase.filter}\nLast run: ${runStatus}` : testCase.filter;
     this.contextValue = 'gtestCase';
-    this.iconPath = new vscode.ThemeIcon('testing-passed-icon');
+    this.iconPath = getGTestCaseIcon(runStatus);
     this.command = {
       command: 'cmakerunner.openGTestCaseSource',
       title: 'Open GTest Source',
       arguments: [this],
     };
   }
+}
+
+function getGTestCaseIcon(runStatus: GTestRunStatus | undefined): vscode.ThemeIcon {
+  if (runStatus === 'passed') {
+    return new vscode.ThemeIcon('testing-passed-icon');
+  }
+
+  if (runStatus === 'failed') {
+    return new vscode.ThemeIcon('testing-failed-icon');
+  }
+
+  return new vscode.ThemeIcon('testing-unset-icon');
 }
 
 type Node = GTestTargetTreeItem | GTestCaseTreeItem;
@@ -39,6 +52,7 @@ export class GTestTreeDataProvider implements vscode.TreeDataProvider<Node> {
   private targets: TargetInfo[] = [];
   private targetItems = new Map<string, GTestTargetTreeItem>();
   private testCasesByTargetId = new Map<string, GTestCaseInfo[]>();
+  private runStatusByTargetId = new Map<string, Map<string, GTestRunStatus>>();
   private filterText = '';
   private filterIsRegex = false;
   private selectedTargetId?: string;
@@ -57,6 +71,7 @@ export class GTestTreeDataProvider implements vscode.TreeDataProvider<Node> {
       this.selectedTargetBuilt = false;
     }
     this.testCasesByTargetId.clear();
+    this.removeRunResultsForMissingTargets(targets);
     this.targetItems = new Map(targets.map((target) => [target.id, new GTestTargetTreeItem(target)]));
     this.onDidChangeTreeDataEmitter.fire();
   }
@@ -75,6 +90,42 @@ export class GTestTreeDataProvider implements vscode.TreeDataProvider<Node> {
 
   public refresh(): void {
     this.testCasesByTargetId.clear();
+    this.onDidChangeTreeDataEmitter.fire();
+  }
+
+  public clearRunResults(target: TargetInfo, testCases?: readonly GTestCaseInfo[]): void {
+    const targetResults = this.runStatusByTargetId.get(target.id);
+    if (!targetResults) {
+      return;
+    }
+
+    if (!testCases) {
+      this.runStatusByTargetId.delete(target.id);
+      this.onDidChangeTreeDataEmitter.fire();
+      return;
+    }
+
+    for (const testCase of testCases) {
+      targetResults.delete(testCase.filter);
+    }
+
+    if (targetResults.size === 0) {
+      this.runStatusByTargetId.delete(target.id);
+    }
+
+    this.onDidChangeTreeDataEmitter.fire();
+  }
+
+  public recordRunResults(target: TargetInfo, results: readonly GTestRunResult[]): void {
+    if (results.length === 0) {
+      return;
+    }
+
+    const targetResults = this.getOrCreateRunResults(target.id);
+    for (const result of results) {
+      targetResults.set(result.testCase.filter, result.status);
+    }
+
     this.onDidChangeTreeDataEmitter.fire();
   }
 
@@ -130,7 +181,11 @@ export class GTestTreeDataProvider implements vscode.TreeDataProvider<Node> {
     if (element instanceof GTestTargetTreeItem) {
       const testCases = await this.getVisibleTestCases(element.target);
       return testCases
-        .map((testCase) => new GTestCaseTreeItem(element.target, testCase));
+        .map((testCase) => new GTestCaseTreeItem(
+          element.target,
+          testCase,
+          this.getRunStatus(element.target, testCase),
+        ));
     }
 
     return [];
@@ -153,6 +208,30 @@ export class GTestTreeDataProvider implements vscode.TreeDataProvider<Node> {
     const cachedTestCases = testCases ?? [];
     this.testCasesByTargetId.set(target.id, cachedTestCases);
     return cachedTestCases;
+  }
+
+  private getOrCreateRunResults(targetId: string): Map<string, GTestRunStatus> {
+    const existingResults = this.runStatusByTargetId.get(targetId);
+    if (existingResults) {
+      return existingResults;
+    }
+
+    const nextResults = new Map<string, GTestRunStatus>();
+    this.runStatusByTargetId.set(targetId, nextResults);
+    return nextResults;
+  }
+
+  private getRunStatus(target: TargetInfo, testCase: GTestCaseInfo): GTestRunStatus | undefined {
+    return this.runStatusByTargetId.get(target.id)?.get(testCase.filter);
+  }
+
+  private removeRunResultsForMissingTargets(targets: readonly TargetInfo[]): void {
+    const targetIds = new Set(targets.map((target) => target.id));
+    for (const targetId of this.runStatusByTargetId.keys()) {
+      if (!targetIds.has(targetId)) {
+        this.runStatusByTargetId.delete(targetId);
+      }
+    }
   }
 
   private async getVisibleTargets(): Promise<TargetInfo[]> {

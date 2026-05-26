@@ -323,13 +323,13 @@ describe('workflow manager', () => {
     }
   });
 
-  it('runGTestCases runs selected cases with a combined filter', async () => {
+  it('runGTestCases runs selected cases separately', async () => {
     const deps = createDeps();
-    let runCommand = '';
-    let runLabel = '';
+    const runCommands: string[] = [];
+    const runLabels: string[] = [];
     deps.taskExecutionEngine.executeRun = async (command?: string, label?: string) => {
-      runCommand = command ?? '';
-      runLabel = label ?? '';
+      runCommands.push(command ?? '');
+      runLabels.push(label ?? '');
       return { exitCode: 0 };
     };
 
@@ -339,8 +339,63 @@ describe('workflow manager', () => {
       { suite: 'SuiteA', name: 'TestTwo', filter: 'SuiteA.TestTwo' },
     ], false);
 
-    assert.strictEqual(runCommand, '/tmp/build/debug/app --gtest_filter=SuiteA.TestOne:SuiteA.TestTwo');
-    assert.strictEqual(runLabel, 'Run 2 GoogleTest cases in App [debug]');
+    assert.deepStrictEqual(runCommands, [
+      '/tmp/build/debug/app --gtest_filter=SuiteA.TestOne',
+      '/tmp/build/debug/app --gtest_filter=SuiteA.TestTwo',
+    ]);
+    assert.deepStrictEqual(runLabels, [
+      'Run SuiteA.TestOne (1/2) [debug]',
+      'Run SuiteA.TestTwo (2/2) [debug]',
+    ]);
+  });
+
+  it('runGTestCases continues remaining cases after failures', async () => {
+    const deps = createDeps();
+    const runCommands: string[] = [];
+    const exitCodes = [1, 0, 2];
+    deps.taskExecutionEngine.executeRun = async (command?: string) => {
+      runCommands.push(command ?? '');
+      return { exitCode: exitCodes.shift() ?? 0 };
+    };
+
+    let shown = '';
+    const originalShowErrorMessage = vscode.window.showErrorMessage;
+    (vscode.window as any).showErrorMessage = async (message: string) => {
+      shown = message;
+      return undefined;
+    };
+
+    try {
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      const streamedResults: string[] = [];
+      const result = await manager.runGTestCases(preset, target, [
+        { suite: 'SuiteA', name: 'TestOne', filter: 'SuiteA.TestOne' },
+        { suite: 'SuiteA', name: 'TestTwo', filter: 'SuiteA.TestTwo' },
+        { suite: 'SuiteA', name: 'TestThree', filter: 'SuiteA.TestThree' },
+      ], false, (runResult) => {
+        streamedResults.push(`${runResult.testCase.filter}:${runResult.status}:${runResult.exitCode}`);
+      });
+
+      assert.deepStrictEqual(runCommands, [
+        '/tmp/build/debug/app --gtest_filter=SuiteA.TestOne',
+        '/tmp/build/debug/app --gtest_filter=SuiteA.TestTwo',
+        '/tmp/build/debug/app --gtest_filter=SuiteA.TestThree',
+      ]);
+      assert.deepStrictEqual(result?.results.map((runResult) => `${runResult.testCase.filter}:${runResult.status}`), [
+        'SuiteA.TestOne:failed',
+        'SuiteA.TestTwo:passed',
+        'SuiteA.TestThree:failed',
+      ]);
+      assert.deepStrictEqual(streamedResults, [
+        'SuiteA.TestOne:failed:1',
+        'SuiteA.TestTwo:passed:0',
+        'SuiteA.TestThree:failed:2',
+      ]);
+      assert.ok(shown.includes('2 of 3 GoogleTest cases failed'));
+      assert.ok(deps.calls.some((call) => call.includes('continuing with remaining cases')));
+    } finally {
+      (vscode.window as any).showErrorMessage = originalShowErrorMessage;
+    }
   });
 
   it('runGTestCases does not run when no cases are selected', async () => {
@@ -368,11 +423,11 @@ describe('workflow manager', () => {
     }
   });
 
-  it('runAllGTestCases runs the target executable without a gtest filter', async () => {
+  it('runAllGTestCases runs discovered cases separately', async () => {
     const deps = createDeps();
-    let runCommand = '';
+    const runCommands: string[] = [];
     deps.taskExecutionEngine.executeRun = async (command?: string) => {
-      runCommand = command ?? '';
+      runCommands.push(command ?? '');
       return { exitCode: 0 };
     };
 
@@ -385,9 +440,48 @@ describe('workflow manager', () => {
     try {
       const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
       await manager.runAllGTestCases(preset, target, false);
-      assert.strictEqual(runCommand, '/tmp/build/debug/app');
+      assert.deepStrictEqual(runCommands, [
+        '/tmp/build/debug/app --gtest_filter=SuiteA.TestOne',
+        '/tmp/build/debug/app --gtest_filter=SuiteA.TestTwo',
+      ]);
     } finally {
       (childProcess as any).execFile = originalExecFile;
+    }
+  });
+
+  it('runAllGTestCases continues after a discovered case fails', async () => {
+    const deps = createDeps();
+    const runCommands: string[] = [];
+    const exitCodes = [0, 1, 0];
+    deps.taskExecutionEngine.executeRun = async (command?: string) => {
+      runCommands.push(command ?? '');
+      return { exitCode: exitCodes.shift() ?? 0 };
+    };
+
+    const originalExecFile = childProcess.execFile;
+    const originalShowErrorMessage = vscode.window.showErrorMessage;
+    let shown = '';
+    (childProcess as any).execFile = (_file: string, _args: string[], _options: unknown, callback: Function) => {
+      callback(undefined, 'SuiteA.\n  TestOne\n  TestTwo\n  TestThree\n', '');
+      return {} as ChildProcess;
+    };
+    (vscode.window as any).showErrorMessage = async (message: string) => {
+      shown = message;
+      return undefined;
+    };
+
+    try {
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      await manager.runAllGTestCases(preset, target, false);
+      assert.deepStrictEqual(runCommands, [
+        '/tmp/build/debug/app --gtest_filter=SuiteA.TestOne',
+        '/tmp/build/debug/app --gtest_filter=SuiteA.TestTwo',
+        '/tmp/build/debug/app --gtest_filter=SuiteA.TestThree',
+      ]);
+      assert.ok(shown.includes('1 of 3 GoogleTest cases failed'));
+    } finally {
+      (childProcess as any).execFile = originalExecFile;
+      (vscode.window as any).showErrorMessage = originalShowErrorMessage;
     }
   });
 

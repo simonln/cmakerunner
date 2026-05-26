@@ -23,6 +23,20 @@ export interface GTestCaseInfo {
   readonly filter: string;
 }
 
+export type GTestRunStatus = 'passed' | 'failed';
+
+export interface GTestRunResult {
+  readonly testCase: GTestCaseInfo;
+  readonly status: GTestRunStatus;
+  readonly exitCode: number;
+}
+
+export interface GTestRunSummary {
+  readonly target: TargetInfo;
+  readonly results: readonly GTestRunResult[];
+  readonly stopped?: boolean;
+}
+
 export interface MappingIndex {
   readonly targets: Map<string, TargetInfo>;
   readonly sourceToTargets: Map<string, string[]>;

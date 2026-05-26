@@ -118,7 +118,8 @@ Use `Filter` to choose from the current target, discovered suites, or discovered
 target names, executable names, suite names, case names, or full `suite.case` filters.
 You can also type a regular expression and press Enter to keep every matching GoogleTest visible.
 When a filter is active, the target-level `Run` action runs only the
-visible GoogleTest cases. Use `Clear Filter` to remove the filter, and `Refresh` to clear cached discovery results.
+visible GoogleTest cases. Batch GoogleTest runs execute cases one by one, so later cases still run
+when an earlier case fails. Use `Clear Filter` to remove the filter, and `Refresh` to clear cached discovery results.
 
 
 ## Commands

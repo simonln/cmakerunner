@@ -113,7 +113,8 @@ code --install-extension cmakerunner-0.x.x.vsix
 使用 `Filter` 会展示当前目标、已发现的 suite 和已发现的 case，并可按目标名、
 可执行文件名、suite 名、case 名或完整 `suite.case` 过滤。过滤生效时，目标右侧的
 `Run` 操作只会运行当前可见的 GoogleTest 用例。你也可以直接输入正则表达式并回车，
-保留所有匹配的 GoogleTest；使用 `Clear Filter` 清除过滤；使用 `Refresh`
+保留所有匹配的 GoogleTest。批量运行 GoogleTest 时会逐个执行用例，因此前面的用例失败后，
+后续用例仍会继续运行；使用 `Clear Filter` 清除过滤；使用 `Refresh`
 清除已缓存的用例发现结果。
 
 ### 7. 过滤目标
