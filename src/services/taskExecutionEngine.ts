@@ -142,11 +142,11 @@ export class TaskExecutionEngine {
 
     if (process.platform === 'win32') {
       const escapedRunDirectory = runDirectory.replace(/'/g, "''");
-      return `Push-Location '${escapedRunDirectory}'; try { ${command} } finally { Pop-Location }`;
+      return `Push-Location '${escapedRunDirectory}'; try { ${command}; $cmakerunnerExitCode = if ($LASTEXITCODE -is [int]) { $LASTEXITCODE } elseif ($?) { 0 } else { 1 } } finally { Pop-Location }; exit $cmakerunnerExitCode`;
     }
 
     const escapedRunDirectory = runDirectory.replace(/'/g, `'\\''`);
-    return `__cmakerunner_oldpwd="$PWD"; cd '${escapedRunDirectory}' && ${command}; cd "$__cmakerunner_oldpwd"`;
+    return `__cmakerunner_oldpwd="$PWD"; cd '${escapedRunDirectory}' && { ${command}; __cmakerunner_status=$?; cd "$__cmakerunner_oldpwd"; exit $__cmakerunner_status; }`;
   }
 }
 

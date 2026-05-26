@@ -110,6 +110,48 @@ describe('task execution engine', () => {
       assert.deepStrictEqual(capturedTask?.problemMatchers, []);
       assert.ok(String((capturedTask?.execution as any)?.command).includes("Push-Location 'C:/work dir'"));
       assert.ok(String((capturedTask?.execution as any)?.command).includes('& "C:/tools/my app.exe"'));
+      assert.ok(String((capturedTask?.execution as any)?.command).includes('exit $cmakerunnerExitCode'));
+    } finally {
+      restorePlatform();
+      (vscode.tasks as any).executeTask = originalExecuteTask;
+      (vscode.tasks as any).onDidEndTaskProcess = originalOnDidEndTaskProcess;
+      (vscode.tasks as any).onDidEndTask = originalOnDidEndTask;
+    }
+  });
+
+  it('executeRun preserves non-Windows run command exit codes when wrapping the working directory', async () => {
+    const restorePlatform = setPlatform('darwin');
+    const originalExecuteTask = vscode.tasks.executeTask;
+    const originalOnDidEndTaskProcess = vscode.tasks.onDidEndTaskProcess;
+    const originalOnDidEndTask = vscode.tasks.onDidEndTask;
+
+    const execution = { id: 'run-execution' };
+    let capturedTask: vscode.Task | undefined;
+    let processListener: ((event: { execution: unknown; exitCode: number | undefined }) => void) | undefined;
+
+    (vscode.tasks as any).executeTask = async (task: vscode.Task) => {
+      capturedTask = task;
+      return execution;
+    };
+    (vscode.tasks as any).onDidEndTaskProcess = (listener: typeof processListener) => {
+      processListener = listener;
+      return { dispose: () => {} };
+    };
+    (vscode.tasks as any).onDidEndTask = () => ({ dispose: () => {} });
+
+    try {
+      const engine = createEngine();
+      const resultPromise = engine.executeRun('/tmp/build/app --gtest_filter=Suite.Test', 'Run Suite.Test', '/tmp/build dir');
+      await Promise.resolve();
+      processListener?.({ execution, exitCode: 1 });
+      const result = await resultPromise;
+
+      assert.strictEqual(result.exitCode, 1);
+      assert.ok(capturedTask);
+      const command = String((capturedTask?.execution as any)?.command);
+      assert.ok(command.includes("__cmakerunner_oldpwd=\"$PWD\"; cd '/tmp/build dir'"));
+      assert.ok(command.includes('__cmakerunner_status=$?'));
+      assert.ok(command.includes('exit $__cmakerunner_status'));
     } finally {
       restorePlatform();
       (vscode.tasks as any).executeTask = originalExecuteTask;
