@@ -1,8 +1,8 @@
 # CMake Runner
 
-`CMake Runner` 是一个面向基于 CMake 的 C++ 项目的 VS Code 扩展。它把常见的 **选择 preset -> configure -> 发现可执行目标 -> 构建 -> 运行/调试** 工作流放进一个专用侧边栏中。
+`CMake Runner` 是一个面向基于 CMake 的 C++ 项目的 VS Code 扩展。它把常见的 **选择 preset -> configure -> 发现目标 -> 构建 -> 运行/调试** 工作流放进一个专用侧边栏中。
 
-它适合已经使用 `CMakePresets.json` 管理构建配置，并希望从当前源码文件快速回到所属可执行目标的人群。
+它适合已经使用 `CMakePresets.json` 管理构建配置，并希望从当前源码文件快速回到所属目标的人群。
 
 实现与架构说明见 `architecture.zh-CN.md`。
 
@@ -14,8 +14,8 @@
 - 在存在对应关系时，自动将 configure preset 与 CMake build preset 关联起来
 - 通过 VS Code Task 直接执行 preset configure
 - 在 configure 前自动写入 CMake File API 的 `codemodel-v2` 查询文件
-- 从 `<binaryDir>/.cmake/api/v1/reply/` 发现可执行目标
-- 基于 CMake codemodel 建立“源文件 -> 可执行目标”的映射关系
+- 从 `<binaryDir>/.cmake/api/v1/reply/` 发现受支持目标（`EXECUTABLE`、`SHARED_LIBRARY`、`UTILITY`）
+- 基于 CMake codemodel 建立“源文件 -> 目标”的映射关系
 - 当活动编辑器切换到已映射源码时，在树中定位对应源码节点
 - 支持按目标名、可执行文件名、源码文件名过滤目标
 - 可从 `Targets` 视图或当前已映射源码文件直接执行 build、run、debug
@@ -27,7 +27,7 @@
 插件围绕三个活动栏视图工作：
 
 - `Presets`：选择当前使用的 CMake configure preset
-- `Targets`：查看当前发现的可执行目标及其源码文件
+- `Targets`：查看当前发现的受支持目标及其源码文件
 - `GTests`：按可执行目标查看和运行 GoogleTest 用例
 
 典型流程如下：
@@ -36,7 +36,7 @@
 2. 在 `Presets` 中选择一个 configure preset
 3. 对该 preset 执行 `Build`，先完成 configure
 4. 插件从对应构建目录读取 CMake File API reply 数据
-5. 已发现的可执行目标显示在 `Targets` 中
+5. 已发现的受支持目标显示在 `Targets` 中
 6. 在树上对目标执行 build、run 或 debug
 7. 打开某个已映射源码文件时，插件会在树中定位对应源码节点
 
@@ -88,7 +88,7 @@ code --install-extension cmakerunner-0.x.x.vsix
 <binaryDir>/.cmake/api/v1/reply/
 ```
 
-如果 configure 成功，且 CMake 已生成 File API reply，**Targets** 视图中就会显示该 preset 下识别到的可执行目标。
+如果 configure 成功，且 CMake 已生成 File API reply，**Targets** 视图中就会显示该 preset 下识别到的受支持目标（`EXECUTABLE`、`SHARED_LIBRARY`、`UTILITY`）。
 
 ### 4. 构建目标
 
@@ -103,7 +103,7 @@ code --install-extension cmakerunner-0.x.x.vsix
 - `Run`
 - `Debug`
 
-默认情况下，这两个操作都会先构建目标。
+默认情况下，这两个操作都会先构建目标。`Run` 和 `Debug` 仅支持 `EXECUTABLE` 目标；对不可运行的目标类型会提示 warning。
 
 ### 6. 运行单个 GoogleTest 用例
 

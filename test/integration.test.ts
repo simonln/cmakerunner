@@ -113,6 +113,7 @@ describe('integration', () => {
             targets: [
               { name: 'app', id: 'app', jsonFile: 'target-app.json' },
               { name: 'helper', id: 'helper', jsonFile: 'target-helper.json' },
+              { name: 'install', id: 'install', jsonFile: 'target-install.json' },
             ],
           },
         ],
@@ -136,6 +137,13 @@ describe('integration', () => {
         name: 'helper',
         type: 'STATIC_LIBRARY',
         sources: [{ path: path.join(mappingWorkspaceDir, 'src', 'helper.cpp') }],
+      }, null, 2),
+    );
+    fs.writeFileSync(
+      path.join(replyDir, 'target-install.json'),
+      JSON.stringify({
+        name: 'install',
+        type: 'UTILITY',
       }, null, 2),
     );
 
@@ -259,7 +267,7 @@ describe('integration', () => {
       assert.strictEqual(targets.length, 0);
     });
 
-    it('should build executable target index from file api reply', async () => {
+    it('should build executable/shared-library/utility target index from file api reply', async () => {
       const engine = new MappingEngine(logger);
       await engine.rebuild({
         name: 'debug',
@@ -268,11 +276,12 @@ describe('integration', () => {
         sourceDir: mappingWorkspaceDir,
       });
       const targets = engine.getTargets();
-      assert.strictEqual(targets.length, 1);
-      assert.strictEqual(targets[0].name, 'app');
+      assert.strictEqual(targets.length, 2);
+      assert.deepStrictEqual(targets.map((target) => target.name), ['app', 'install']);
       assert.strictEqual(targets[0].configuration, 'Debug');
       assert.strictEqual(targets[0].sourceFiles.length, 1);
       assert.ok(targets[0].guessedExecutablePath.includes('bin'));
+      assert.strictEqual(targets[1].type, 'UTILITY');
     });
 
     it('should find target by normalized source path after rebuild', async () => {

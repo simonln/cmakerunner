@@ -1,5 +1,10 @@
 # CMake Runner
 
+## V0.3.4 2026-05-28
+### Enhancements
+* Expand mapped target types to `EXECUTABLE`, `SHARED_LIBRARY`, and `UTILITY`
+* Keep run/debug/GoogleTest commands executable-only and show warnings for non-runnable target types
+
 ## V0.3.3 2026-05-26
 ### Enhancements
 Continue running remaining GTest cases after failures

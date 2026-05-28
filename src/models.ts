@@ -12,6 +12,7 @@ export interface TargetInfo {
   readonly id: string;
   readonly name: string;
   readonly displayName: string;
+  readonly type?: string;
   readonly configuration?: string;
   readonly sourceFiles: string[];
   readonly guessedExecutablePath: string;
