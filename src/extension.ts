@@ -122,6 +122,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   };
 
+  const getTargetType = (target: TargetInfo): string => target.type ?? 'EXECUTABLE';
+  const isRunnableTarget = (target: TargetInfo): boolean => getTargetType(target) === 'EXECUTABLE';
+
+  const ensureRunnableTarget = (target: TargetInfo, action: string): boolean => {
+    if (isRunnableTarget(target)) {
+      return true;
+    }
+
+    void vscode.window.showWarningMessage(
+      `Target ${target.displayName} is a ${getTargetType(target)} target and cannot be ${action}. Only EXECUTABLE targets are supported for this command.`,
+    );
+    return false;
+  };
+
   const resolveSelectedTarget = (): TargetInfo | undefined => {
     if (!selectedTargetId) {
       return undefined;
@@ -137,8 +151,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (selectionChanged && gtestTreeDataProvider.getFilterText()) {
       gtestTreeDataProvider.setFilterText('');
     }
-    const isBuilt = target ? await isTargetBuilt(target) : false;
-    gtestTreeDataProvider.setSelectedTarget(target, isBuilt);
+    const selectedTarget = target && isRunnableTarget(target) ? target : undefined;
+    const isBuilt = selectedTarget ? await isTargetBuilt(selectedTarget) : false;
+    gtestTreeDataProvider.setSelectedTarget(selectedTarget, isBuilt);
     await updateGTestViewState();
   };
 
@@ -752,6 +767,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
 
       await selectTarget(target);
+      if (!ensureRunnableTarget(target, 'run')) {
+        return;
+      }
       await workflowManager.runTarget(preset, target);
       await updateGTestSelection(target);
     }),
@@ -808,6 +826,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
 
       await selectTarget(target);
+      if (!ensureRunnableTarget(target, 'used to run GoogleTest')) {
+        return;
+      }
       await workflowManager.runGTestCase(preset, target, true, undefined, recordGTestRunResult(target));
       await updateGTestSelection(target);
     }),
@@ -833,6 +854,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
 
       await selectTarget(target);
+      if (!ensureRunnableTarget(target, 'debugged')) {
+        return;
+      }
       await workflowManager.debugTarget(preset, target);
       await updateGTestSelection(target);
     }),

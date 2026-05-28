@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { GTestCaseTreeItem } from '../src/ui/gtestTreeDataProvider';
+import { TargetTreeItem } from '../src/ui/targetTreeDataProvider';
 
 type MockVscode = typeof vscode & {
   __mock: {
@@ -284,6 +285,121 @@ describe('extension commands', () => {
     }
 
     assert.strictEqual(gtestTargetName, 'app');
+  });
+
+  it('runTarget warns and skips workflow for shared-library targets', async () => {
+    await activateExtension();
+
+    const workflowModule = require('../src/services/workflowManager') as typeof import('../src/services/workflowManager');
+    const originalRunTarget = workflowModule.WorkflowManager.prototype.runTarget;
+    const originalShowWarningMessage = vscode.window.showWarningMessage;
+    let warnedMessage = '';
+    let runCalled = false;
+
+    workflowModule.WorkflowManager.prototype.runTarget = async () => {
+      runCalled = true;
+    };
+    (vscode.window as any).showWarningMessage = async (message: string) => {
+      warnedMessage = message;
+      return undefined;
+    };
+
+    const libraryTarget = new TargetTreeItem({
+      id: 'mylib',
+      name: 'mylib',
+      displayName: 'mylib',
+      type: 'SHARED_LIBRARY',
+      sourceFiles: [appSourcePath],
+      guessedExecutablePath: path.join(fixtureRoot, 'bin', 'mylib.dll'),
+    });
+
+    try {
+      await vscode.commands.executeCommand('cmakerunner.runTarget', libraryTarget);
+    } finally {
+      workflowModule.WorkflowManager.prototype.runTarget = originalRunTarget;
+      (vscode.window as any).showWarningMessage = originalShowWarningMessage;
+    }
+
+    assert.strictEqual(runCalled, false);
+    assert.ok(warnedMessage.includes('SHARED_LIBRARY'));
+    assert.ok(warnedMessage.includes('cannot be run'));
+  });
+
+  it('debugTarget warns and skips workflow for shared-library targets', async () => {
+    await activateExtension();
+
+    const workflowModule = require('../src/services/workflowManager') as typeof import('../src/services/workflowManager');
+    const originalDebugTarget = workflowModule.WorkflowManager.prototype.debugTarget;
+    const originalShowWarningMessage = vscode.window.showWarningMessage;
+    let warnedMessage = '';
+    let debugCalled = false;
+
+    workflowModule.WorkflowManager.prototype.debugTarget = async () => {
+      debugCalled = true;
+    };
+    (vscode.window as any).showWarningMessage = async (message: string) => {
+      warnedMessage = message;
+      return undefined;
+    };
+
+    const libraryTarget = new TargetTreeItem({
+      id: 'mylib',
+      name: 'mylib',
+      displayName: 'mylib',
+      type: 'SHARED_LIBRARY',
+      sourceFiles: [appSourcePath],
+      guessedExecutablePath: path.join(fixtureRoot, 'bin', 'mylib.dll'),
+    });
+
+    try {
+      await vscode.commands.executeCommand('cmakerunner.debugTarget', libraryTarget);
+    } finally {
+      workflowModule.WorkflowManager.prototype.debugTarget = originalDebugTarget;
+      (vscode.window as any).showWarningMessage = originalShowWarningMessage;
+    }
+
+    assert.strictEqual(debugCalled, false);
+    assert.ok(warnedMessage.includes('SHARED_LIBRARY'));
+    assert.ok(warnedMessage.includes('cannot be debugged'));
+  });
+
+  it('runGTestCase warns and skips workflow for shared-library targets', async () => {
+    await activateExtension();
+
+    const workflowModule = require('../src/services/workflowManager') as typeof import('../src/services/workflowManager');
+    const originalRunGTestCase = workflowModule.WorkflowManager.prototype.runGTestCase;
+    const originalShowWarningMessage = vscode.window.showWarningMessage;
+    let warnedMessage = '';
+    let runCalled = false;
+
+    workflowModule.WorkflowManager.prototype.runGTestCase = async () => {
+      runCalled = true;
+      return undefined;
+    };
+    (vscode.window as any).showWarningMessage = async (message: string) => {
+      warnedMessage = message;
+      return undefined;
+    };
+
+    const libraryTarget = new TargetTreeItem({
+      id: 'mylib',
+      name: 'mylib',
+      displayName: 'mylib',
+      type: 'SHARED_LIBRARY',
+      sourceFiles: [appSourcePath],
+      guessedExecutablePath: path.join(fixtureRoot, 'bin', 'mylib.dll'),
+    });
+
+    try {
+      await vscode.commands.executeCommand('cmakerunner.runGTestCase', libraryTarget);
+    } finally {
+      workflowModule.WorkflowManager.prototype.runGTestCase = originalRunGTestCase;
+      (vscode.window as any).showWarningMessage = originalShowWarningMessage;
+    }
+
+    assert.strictEqual(runCalled, false);
+    assert.ok(warnedMessage.includes('SHARED_LIBRARY'));
+    assert.ok(warnedMessage.includes('used to run GoogleTest'));
   });
 
   it('openGTestCaseSource opens the matching source file', async () => {
