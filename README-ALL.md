@@ -2,9 +2,9 @@
 
 English documentation is the default in this file. For the Chinese version, see `doc/README.zh-CN.md`.
 
-`CMake Runner` is a VS Code extension for CMake-based C++ projects. It puts the common workflow of **select preset -> configure -> discover executable targets -> build -> run/debug** into a dedicated sidebar.
+`CMake Runner` is a VS Code extension for CMake-based C++ projects. It puts the common workflow of **select preset -> configure -> discover targets -> build -> run/debug** into a dedicated sidebar.
 
-It is designed for projects that already use `CMakePresets.json` and want a more direct way to work from the current source file back to the executable target that owns it.
+It is designed for projects that already use `CMakePresets.json` and want a more direct way to work from the current source file back to the target that owns it.
 
 Implementation and architecture notes are available in `doc/architecture.zh-CN.md`.
 
@@ -16,8 +16,8 @@ Implementation and architecture notes are available in `doc/architecture.zh-CN.m
 - Associates configure presets with matching CMake build presets when available
 - Runs preset configure directly from VS Code tasks
 - Writes the CMake File API `codemodel-v2` query before configure
-- Discovers executable targets from `<binaryDir>/.cmake/api/v1/reply/`
-- Builds a source file to executable target mapping from the CMake codemodel
+- Discovers supported targets (`EXECUTABLE`, `SHARED_LIBRARY`, `UTILITY`) from `<binaryDir>/.cmake/api/v1/reply/`
+- Builds a source file to target mapping from the CMake codemodel
 - Reveals the matching source node when the active editor switches to a mapped file
 - Supports target filtering by target name, executable name, or source file name
 - Builds, runs, and debugs targets from the `Targets` view or from the active mapped source file
@@ -30,7 +30,7 @@ Implementation and architecture notes are available in `doc/architecture.zh-CN.m
 The extension revolves around three activity bar views:
 
 - `Presets`: choose the active CMake configure preset
-- `Targets`: inspect discovered executable targets and their source files
+- `Targets`: inspect discovered supported targets and their source files
 - `GTests`: inspect and run GoogleTest cases by executable target
 
 Typical usage looks like this:
@@ -39,7 +39,7 @@ Typical usage looks like this:
 2. Select a configure preset in `Presets`
 3. Run `Build` on that preset to configure the project
 4. The extension reads the CMake File API reply data from the preset's build directory
-5. Discovered executable targets appear in `Targets`
+5. Discovered supported targets appear in `Targets`
 6. Build, run, or debug a target from the tree
 7. When you open a mapped source file, the extension reveals the corresponding source entry in the tree
 
@@ -91,7 +91,7 @@ Run `Build` on the selected preset. The extension configures the project and rea
 <binaryDir>/.cmake/api/v1/reply/
 ```
 
-If configure succeeds and CMake generated the File API reply, executable targets appear in **Targets**.
+If configure succeeds and CMake generated the File API reply, supported targets (`EXECUTABLE`, `SHARED_LIBRARY`, `UTILITY`) appear in **Targets**.
 
 ### 4. Build a target
 
@@ -106,7 +106,7 @@ You can invoke these actions directly on a target:
 - `Run`
 - `Debug`
 
-By default, both actions build the target first.
+By default, both actions build the target first. `Run` and `Debug` only support `EXECUTABLE` targets; non-runnable target types show a warning.
 
 ### 6. Run one GoogleTest case
 

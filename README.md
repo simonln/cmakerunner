@@ -1,6 +1,6 @@
 # CMake Runner
 
-`CMake Runner` is a VS Code extension for CMake-based C++ projects. It puts the common workflow of **select preset -> configure -> discover executable targets -> build -> run/debug** into a dedicated sidebar.
+`CMake Runner` is a VS Code extension for CMake-based C++ projects. It puts the common workflow of **select preset -> configure -> discover targets -> build -> run/debug** into a dedicated sidebar.
 
 It is designed for projects that already use `CMakePresets.json` and want a more direct way to work from the current source file back to the executable target that owns it.
 
@@ -11,7 +11,7 @@ It is designed for projects that already use `CMakePresets.json` and want a more
 - Resolves preset details from `CMakePresets.json` and `CMakeUserPresets.json`, including `include` and `inherits`
 - Associates configure presets with matching CMake build presets when available
 - Runs preset configure directly from VS Code tasks
-- After the configure is complete, the executable target is automatically discovered
+- After the configure is complete, supported targets are automatically discovered (`EXECUTABLE`, `SHARED_LIBRARY`, `UTILITY`)
 - Builds a source file to executable target mapping from the CMake codemodel
 - Reveals the matching source node when the active editor switches to a mapped file
 - Supports target filtering by target name, executable name, or source file name
@@ -25,7 +25,7 @@ It is designed for projects that already use `CMakePresets.json` and want a more
 The extension revolves around two activity bar views:
 
 - `Presets`: choose the active CMake configure preset
-- `Targets`: inspect discovered executable targets and their source files
+- `Targets`: inspect discovered supported targets and their source files
 
 Typical usage looks like this:
 
@@ -33,7 +33,7 @@ Typical usage looks like this:
 2. Select a configure preset in `Presets`
 3. Run `Build` on that preset to configure the project
 4. The extension reads the CMake File API reply data from the preset's build directory
-5. Discovered executable targets appear in `Targets`
+5. Discovered supported targets appear in `Targets`
 6. Build, run, or debug a target from the tree
 7. When you open a mapped source file, the extension reveals the corresponding source entry in the tree
 
@@ -80,7 +80,7 @@ Open the `cmakerunner` activity bar item and choose a configure preset in the **
 
 Run `Build` on the selected preset. 
 
-If configure succeeds, executable targets appear in **Targets**.
+If configure succeeds, supported targets (`EXECUTABLE`, `SHARED_LIBRARY`, `UTILITY`) appear in **Targets**.
 
 ### 4. Build a target
 
@@ -95,7 +95,7 @@ You can invoke these actions directly on a target:
 - `Run`
 - `Debug`
 
-By default, both actions build the target first.
+By default, both actions build the target first. `Run` and `Debug` only support `EXECUTABLE` targets; non-runnable target types show a warning.
 
 ### 6. Filter targets
 

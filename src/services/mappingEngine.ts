@@ -45,6 +45,12 @@ interface FileApiTarget {
   readonly sources?: FileApiTargetSource[];
 }
 
+const SUPPORTED_TARGET_TYPES = new Set([
+  'EXECUTABLE',
+  'SHARED_LIBRARY',
+  'UTILITY',
+]);
+
 export class MappingEngine {
   public constructor(private readonly logger: OutputLogger) {}
 
@@ -128,7 +134,7 @@ export class MappingEngine {
         const targetContent = await vscode.workspace.fs.readFile(targetPath);
         const target = parseJsonBuffer<FileApiTarget>(targetContent).value;
 
-        if (target.type !== 'EXECUTABLE' || !target.name) {
+        if (!target.name || !target.type || !SUPPORTED_TARGET_TYPES.has(target.type)) {
           continue;
         }
 
@@ -152,6 +158,7 @@ export class MappingEngine {
           id: targetKey,
           name: target.name,
           displayName: targetDisplayName,
+          type: target.type,
           configuration: configurationName,
           sourceFiles,
           guessedExecutablePath: executablePath,
