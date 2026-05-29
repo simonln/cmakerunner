@@ -15,9 +15,9 @@ npm run package:vsix    # Build VSIX to dist/
 
 - Entry point: `src/extension.ts`
 - Output: `out/` (generated, never edit manually)
-- Three tree views: `cmakerunner.presets`, `cmakerunner.targets`, `cmakerunner.gtests`
-- Services: `src/services/` (preset, target, mapping, workflow, config, output, windowsTooling)
-- UI providers: `src/ui/` (preset, target, gtest tree data providers)
+- Two tree views: `cmakerunner.presets`, `cmakerunner.targets`
+- Services: `src/services/` (preset, target, mapping, workflow, config, output, windowsTooling, Test Explorer integration)
+- UI providers: `src/ui/` (preset and target tree data providers)
 
 ## Key Details
 
@@ -26,6 +26,7 @@ npm run package:vsix    # Build VSIX to dist/
 - Configure always writes `codemodel-v2` query file
 - Requires successful configure before targets appear
 - Uses VS Code Tasks API and Debug API for build/run/debug
+- GoogleTest cases are registered in VS Code Test Explorer by scanning executables under the active preset build directory
 
 ## Extension Commands
 
@@ -38,13 +39,10 @@ npm run package:vsix    # Build VSIX to dist/
 | `cmakerunner.buildTarget` | Build target |
 | `cmakerunner.buildTargetFromCurrentFile` | Build target from active source file |
 | `cmakerunner.runTarget` | Run target |
-| `cmakerunner.runGTestCase` | Build target and run a GoogleTest case |
 | `cmakerunner.debugTarget` | Debug target |
 | `cmakerunner.filterTargets` | Filter targets view |
 | `cmakerunner.clearTargetFilter` | Clear target filter |
-| `cmakerunner.refreshGTests` | Refresh GTests view |
-| `cmakerunner.filterGTests` | Filter GTests view |
-| `cmakerunner.clearGTestFilter` | Clear GTest filter |
+| `cmakerunner.refreshGTests` | Refresh Test Explorer GoogleTest items |
 
 ## Test Commands
 

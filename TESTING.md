@@ -33,8 +33,7 @@ node test/run-unit.js
 ## 当前状态
 
 - 当前完整套件可在普通 Node 环境下运行，不再要求 Extension Development Host。
-- 最近一次已验证结果：`98 passing`
-- 最近一次已验证行覆盖率：`90.12%`
+- 最近一次已验证结果：`142 passing`
 
 ## VS Code 调试扩展
 

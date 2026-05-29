@@ -21,17 +21,18 @@ Implementation and architecture notes are available in `doc/architecture.zh-CN.m
 - Reveals the matching source node when the active editor switches to a mapped file
 - Supports target filtering by target name, executable name, or source file name
 - Builds, runs, and debugs targets from the `Targets` view or from the active mapped source file
-- Lists GoogleTest cases for built executable targets, opens a case's source on click, and provides inline run/debug actions
+- Registers GoogleTest cases in VS Code Test Explorer by scanning executable files under the active preset's build directory
+- Supports Test Explorer run/debug actions for discovered GoogleTest cases
 - Adds an editor title build button that starts from the current file and lets you pick from auto-filtered targets
 - Lets you customize configure, build, and run command templates through `settings.json`
 
 ## Typical Workflow
 
-The extension revolves around three activity bar views:
+The extension revolves around two CMake Runner activity bar views plus VS Code's built-in Test Explorer:
 
 - `Presets`: choose the active CMake configure preset
 - `Targets`: inspect discovered supported targets and their source files
-- `GTests`: inspect and run GoogleTest cases by executable target
+- Test Explorer: inspect, run, and debug discovered GoogleTest cases
 
 Typical usage looks like this:
 
@@ -49,10 +50,7 @@ Before using the extension, make sure the workspace meets these conditions:
 
 1. The workspace root contains a valid `CMakePresets.json`
 2. The project is a working CMake C++ project that can be configured and built
-3. A C/C++ debugging backend is available in VS Code
-   - Windows: usually `cppvsdbg`
-   - Linux: usually `lldb`
-   - macOS: usually `lldb`
+3. A supported C/C++ debugger extension is installed in VS Code, such as CodeLLDB, Native Debug, or Microsoft C/C++
 4. You must successfully run configure at least once so the build directory contains CMake File API reply data
 
 By default, preset configure runs `cmake --preset ${preset}`. The extension writes `.cmake/api/v1/query/codemodel-v2` before configure. Target discovery and source mapping rely on the CMake File API reply.
@@ -108,18 +106,12 @@ You can invoke these actions directly on a target:
 
 By default, both actions build the target first. `Run` and `Debug` only support `EXECUTABLE` targets; non-runnable target types show a warning.
 
-### 6. Run one GoogleTest case
+### 6. Run or debug GoogleTest cases
 
-Use the **GTests** view next to **Targets** to inspect GoogleTest cases by executable target.
-Expanding a target runs it with `--gtest_list_tests`. Use the inline `Run` action beside a
-discovered case to run the same target with `--gtest_filter=<suite.case>`.
-Use `Filter` to choose from the current target, discovered suites, or discovered cases. It matches
-target names, executable names, suite names, case names, or full `suite.case` filters.
-You can also type a regular expression and press Enter to keep every matching GoogleTest visible.
-When a filter is active, the target-level `Run` action runs only the
-visible GoogleTest cases. Batch GoogleTest runs execute cases one by one, so later cases still run
-when an earlier case fails. Use `Clear Filter` to remove the filter, and `Refresh` to clear
-cached discovery results.
+GoogleTest cases are registered in VS Code's built-in **Test Explorer**.
+After a preset is selected and targets are refreshed, the extension scans the selected preset's `binaryDir` for executable files. Each executable candidate is probed with `--gtest_list_tests`; executables that report GoogleTest cases are added to Test Explorer.
+
+Use Test Explorer's built-in `Run` and `Debug` actions on a test case, suite, or executable group. Run uses `--gtest_filter=<suite.case>` for each selected case. Debug starts the installed C/C++ debugger directly with the matching GoogleTest filter.
 
 ### 7. Filter targets
 
@@ -144,12 +136,8 @@ The extension currently contributes these commands:
 - `cmakerunner.buildTarget`: build the resolved target
 - `cmakerunner.buildTargetFromCurrentFile`: build the target mapped to the active source file
 - `cmakerunner.runTarget`: build and run the resolved target
-- `cmakerunner.runGTestCase`: build the resolved target, select a GoogleTest case, and run only that case
-- `cmakerunner.debugGTestCase`: build the resolved target, write/update a launch configuration for one GoogleTest case, and start debugging it
 - `cmakerunner.debugTarget`: build and debug the resolved target
-- `cmakerunner.refreshGTests`: clear cached GoogleTest discovery results and reload the GTests view
-- `cmakerunner.filterGTests`: filter visible GoogleTest targets and cases
-- `cmakerunner.clearGTestFilter`: clear the current GoogleTest filter
+- `cmakerunner.refreshGTests`: rescan the active preset build directory and refresh Test Explorer GoogleTest items
 - `cmakerunner.filterTargets`: filter visible targets and source nodes
 - `cmakerunner.clearTargetFilter`: clear the current target filter
 
@@ -164,7 +152,19 @@ The extension exposes these settings in VS Code `settings.json`:
 | `cmakerunner.tasks.buildCommandTemplate` | `cmake --build ${buildDir}${configurationArgument} --target ${target}` | Build command template used for targets |
 | `cmakerunner.tasks.runCommandTemplate` | `${executableCommand}` | Run command template used for targets |
 | `cmakerunner.tasks.clearTerminalBeforeRun` | `true` | Clears the shared terminal before build or run tasks |
-| `cmakerunner.debug.type` | `""` | Debug configuration type written into `launch.json`. Leave empty to use the platform default: `cppvsdbg` on Windows, `lldb` on Linux/macOS. |
+
+### Debugger Selection
+
+Debug sessions are started directly through VS Code's Debug API. The extension does not write or update `launch.json` for target or GoogleTest debugging.
+
+Debugger configuration is selected in this order:
+
+1. Reuse the first compatible C/C++ `launch` configuration from workspace `launch.json`
+2. Use CodeLLDB (`vadimcn.vscode-lldb`) when installed
+3. Use Native Debug (`webfreak.debug`) when installed
+4. Use Microsoft C/C++ (`ms-vscode.cpptools`) when installed
+
+If no supported debugger extension is installed, debugging reports an error.
 
 ### Supported variables for configure templates
 
@@ -231,7 +231,7 @@ It is still a good idea to enable `CMAKE_EXPORT_COMPILE_COMMANDS` in your preset
 
 - Target discovery and source mapping depend on the CMake File API reply; if configure has not succeeded yet, the target list stays empty
 - The extension focuses on preset configure, target discovery, build, run, and debug; it is not a full CMake project manager
-- Debug configurations are created dynamically at runtime and depend on an available C/C++ debug backend
+- Debug sessions are created dynamically at runtime and depend on an installed supported C/C++ debugger extension
 - The extension operates on the first VS Code workspace folder
 
 ## Development

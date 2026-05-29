@@ -2,16 +2,16 @@
 
 ## 1. 插件概述
 
-本插件旨在为基于 CMake 的 C++ 项目提供围绕 Preset 和目标的“配置 - 构建 - 运行 - 调试”体验。当前实现主要依赖 `CMakePresets.json` 和 CMake File API 元数据来展示构建预设、识别受支持目标（`EXECUTABLE`、`SHARED_LIBRARY`、`UTILITY`）及其源码文件，并提供基于 VS Code 原生 Tasks API 的工作流。
+本插件旨在为基于 CMake 的 C++ 项目提供围绕 Preset 和目标的“配置 - 构建 - 运行 - 调试”体验。当前实现主要依赖 `CMakePresets.json` 和 CMake File API 元数据来展示构建预设、识别受支持目标（`EXECUTABLE`、`SHARED_LIBRARY`、`UTILITY`）及其源码文件，并提供基于 VS Code 原生 Tasks API、Testing API 与 Debug API 的工作流。
 
 ## 2. 核心功能特性
 
 - **智能按需激活**：仅在包含 `CMakePresets.json` 的工作区激活。
 - **预设解析与过滤**：读取 configure presets，并过滤 `hidden: true` 的条目。
 - **源码到目标映射**：基于 CMake File API 返回的 target `sources` 建立 `<源码文件 -> 目标>` 映射。
-- **侧边栏视图联动**：通过 TreeView 展示 Preset、Target 与 GTest，并与当前编辑器联动。
+- **侧边栏视图联动**：通过 TreeView 展示 Preset 与 Target，并与当前编辑器联动。
 - **原生任务与调试集成**：使用 VS Code Tasks API 执行 configure / build / run，并对接调试能力。
-- **GoogleTest 支持**：通过 `--gtest_list_tests` 发现用例，支持按目标/用例运行与过滤。
+- **GoogleTest 支持**：扫描当前 preset 构建目录中的可执行文件，通过 `--gtest_list_tests` 发现用例，并注册到 VS Code 测试资源管理器。
 - **可配置命令模板**：通过 `settings.json` 定制 configure、build、run 命令。
 
 ## 3. 架构分层设计
@@ -23,7 +23,9 @@
 - **TreeView Provider**
   - `Presets` 视图：展示可用 configure preset
   - `Targets` 视图：展示受支持目标及其源码文件
-  - `GTests` 视图：展示 GoogleTest 用例并按目标/用例运行
+- **TestController**
+  - 使用 VS Code Testing API 注册 GoogleTest 可执行文件、suite 和 case
+  - 响应测试资源管理器中的 run / debug 请求
 - **Command Register**
   - 注册 `cmakerunner.buildTarget`、`cmakerunner.debugTarget` 等命令
 - **Editor Sync Listener**
@@ -36,6 +38,7 @@
 - **PresetProvider**：解析 `CMakePresets.json`，处理 `inherits`、`displayName`、`binaryDir`，并为 configure preset 关联合适的 build preset / configuration
 - **MappingEngine**：读取 CMake File API codemodel，提取受支持目标、推断构建产物路径，并建立源码到目标映射
 - **WorkflowManager**：串联 configure、build、run、debug 生命周期
+- **GTestTestController**：扫描 preset `binaryDir`，发现 GoogleTest 用例并处理 Test Explorer run/debug profile
 
 ### 3.3 执行与集成层
 
@@ -67,7 +70,17 @@
 2. 插件根据 target、preset、关联的 build preset / configuration 与配置模板生成实际命令
 3. `TaskExecutionEngine` 以 shell task 方式执行任务；构建任务接入 `$gcc` 和 `$msCompile` problem matcher
 4. `Run` 和 `Debug` 默认都会先构建目标；仅当构建成功后才继续运行或启动调试，且仅 `EXECUTABLE` 目标可运行/调试
-5. `Debug` 由 `WorkflowManager` 动态构造平台默认调试配置并发起调试会话，Windows 默认为 `cppvsdbg`，Linux/macOS 默认为 `lldb`
+5. `Debug` 由 `WorkflowManager` 动态构造调试配置并通过 VS Code Debug API 直接发起调试会话，不写入 `launch.json`
+6. 调试配置优先复用 `launch.json` 中兼容的 C/C++ launch 配置，否则按已安装扩展选择 CodeLLDB、Native Debug 或 Microsoft C/C++
+
+### 4.4 GoogleTest 发现与运行链路
+
+1. 当前 preset 变化或目标刷新后，`GTestTestController` 获取 preset 的 `binaryDir`
+2. 控制器递归扫描构建目录中的可执行文件候选项，跳过 `.cmake`、`CMakeFiles`、`_deps` 等目录
+3. 每个候选可执行文件通过 `--gtest_list_tests` 探测是否包含 GoogleTest 用例
+4. 发现到的用例按“可执行文件 -> suite -> case”注册到 VS Code 测试资源管理器
+5. Test Explorer 的 Run 请求会对每个选中 case 使用 `--gtest_filter=<suite.case>` 运行
+6. Test Explorer 的 Debug 请求会聚合同一可执行文件下的选中 case，并直接启动已安装调试器
 
 ## 5. 配置与扩展性设计
 
@@ -77,9 +90,9 @@
 | --- | --- | --- | --- |
 | `cmakerunner.cmakePath` | `string` | `""` | CMake 可执行文件路径 |
 | `cmakerunner.tasks.presetConfigureCommandTemplate` | `string` | `cmake --preset ${preset}` | preset configure 命令模板 |
+| `cmakerunner.tasks.buildCommandTemplate` | `string` | `cmake --build ${buildDir}${configurationArgument} --target ${target}` | 目标构建命令模板 |
 | `cmakerunner.tasks.runCommandTemplate` | `string` | `${executableCommand}` | 运行目标命令模板 |
 | `cmakerunner.tasks.clearTerminalBeforeRun` | `boolean` | `true` | 执行前是否清理终端 |
-| `cmakerunner.debug.type` | `string` | `""` | Debug 配置类型 |
 
 ### 支持变量
 
@@ -105,6 +118,7 @@ src/
 │  ├─ outputLogger.ts
 │  ├─ presetProvider.ts
 │  ├─ taskExecutionEngine.ts
+│  ├─ testController.ts
 │  ├─ windowsTooling.ts
 │  └─ workflowManager.ts
 └─ ui/
@@ -118,7 +132,8 @@ src/
 - `MappingEngine`：从 File API 读取可执行目标并建立源码映射
 - `TaskExecutionEngine`：执行任务
 - `WorkflowManager`：组织高层工作流
-- `PresetTreeDataProvider` / `TargetTreeDataProvider` / `GTestTreeDataProvider`：提供树视图数据
+- `GTestTestController`：提供 VS Code Test Explorer 中的 GoogleTest 发现、运行与调试集成
+- `PresetTreeDataProvider` / `TargetTreeDataProvider`：提供树视图数据
 
 ## 7. 当前限制与后续方向
 

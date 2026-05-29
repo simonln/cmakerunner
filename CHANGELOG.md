@@ -1,5 +1,16 @@
 # CMake Runner
 
+## V0.4.0 2026-05-30
+### Enhancements
+* Move GoogleTest integration from the custom `GTests` view to VS Code Test Explorer
+* Discover GoogleTest cases by scanning executable files under the active preset build directory
+* Support Test Explorer run/debug actions for GoogleTest cases
+* Start debugger sessions directly with the installed C/C++ debugger instead of writing `launch.json`
+
+### Breaking Changes
+* Remove `cmakerunner.debug.type`
+* Remove custom GTests view commands and menus
+
 ## V0.3.4 2026-05-28
 ### Enhancements
 * Expand mapped target types to `EXECUTABLE`, `SHARED_LIBRARY`, and `UTILITY`
