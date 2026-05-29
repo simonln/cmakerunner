@@ -200,55 +200,58 @@ it('should call appendLine for info level', () => {
       vscode.workspace.getConfiguration = originalGetConfig;
     });
 
-    it('should default debug type to lldb on Linux and macOS', () => {
+    it('should create debug configuration from installed Microsoft C++ extension', () => {
       const mockConfig = createMockConfig({
-        'debug.type': '',
+        configurations: [],
       });
 
       const originalGetConfig = vscode.workspace.getConfiguration;
-      (vscode.workspace as any).getConfiguration = () => mockConfig;
+      const originalExtensions = vscode.extensions.all;
+      (vscode.workspace as any).getConfiguration = (section?: string) => section === 'launch' ? mockConfig : createMockConfig({});
+      Object.defineProperty(vscode.extensions, 'all', { value: [{ id: 'ms-vscode.cpptools' }], configurable: true });
 
       try {
         withMockPlatform('linux', () => {
-          assert.strictEqual(new ConfigurationManager().getDebugType(), 'lldb');
-        });
-        withMockPlatform('darwin', () => {
-          assert.strictEqual(new ConfigurationManager().getDebugType(), 'lldb');
-        });
-      } finally {
-        vscode.workspace.getConfiguration = originalGetConfig;
-      }
-    });
-
-    it('should default debug type to cppvsdbg on Windows', () => {
-      const mockConfig = createMockConfig({
-        'debug.type': '',
-      });
-
-      const originalGetConfig = vscode.workspace.getConfiguration;
-      (vscode.workspace as any).getConfiguration = () => mockConfig;
-
-      try {
-        withMockPlatform('win32', () => {
-          assert.strictEqual(new ConfigurationManager().getDebugType(), 'cppvsdbg');
+          const result = new ConfigurationManager().createDebugConfiguration({
+            name: 'Debug Test',
+            program: '/build/debug/myapp',
+            cwd: '/build/debug',
+            args: ['--gtest_filter=Suite.Test'],
+          });
+          assert.strictEqual(result.type, 'cppdbg');
+          assert.strictEqual(result.MIMode, 'gdb');
+          assert.strictEqual(result.program, '/build/debug/myapp');
+          assert.deepStrictEqual(result.args, ['--gtest_filter=Suite.Test']);
         });
       } finally {
         vscode.workspace.getConfiguration = originalGetConfig;
+        Object.defineProperty(vscode.extensions, 'all', { value: originalExtensions, configurable: true });
       }
     });
 
-    it('should use configured debug type when provided', () => {
+    it('should prefer compatible launch configuration templates', () => {
       const mockConfig = createMockConfig({
-        'debug.type': 'cppdbg',
+        configurations: [{
+          name: 'Existing C++',
+          type: 'cppdbg',
+          request: 'launch',
+          stopAtEntry: true,
+        }],
       });
 
       const originalGetConfig = vscode.workspace.getConfiguration;
-      (vscode.workspace as any).getConfiguration = () => mockConfig;
+      (vscode.workspace as any).getConfiguration = (section?: string) => section === 'launch' ? mockConfig : createMockConfig({});
 
       try {
-        withMockPlatform('linux', () => {
-          assert.strictEqual(new ConfigurationManager().getDebugType(), 'cppdbg');
+        const result = new ConfigurationManager().createDebugConfiguration({
+          name: 'Debug Test',
+          program: '/build/debug/myapp',
+          cwd: '/build/debug',
+          args: [],
         });
+        assert.strictEqual(result.type, 'cppdbg');
+        assert.strictEqual(result.stopAtEntry, true);
+        assert.strictEqual(result.program, '/build/debug/myapp');
       } finally {
         vscode.workspace.getConfiguration = originalGetConfig;
       }

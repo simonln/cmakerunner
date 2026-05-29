@@ -2,7 +2,7 @@
     "name": "cmakerunner",
     "displayName": "CMake Runner",
     "description": "Preset, target, build, run, and debug workflow for CMake-based C++ projects.",
-    "version": "0.3.4",
+    "version": "0.4.0",
     "publisher": "Simon-tools",
     "repository": {
         "type": "git",
@@ -94,15 +94,7 @@
             },
             {
                 "command": "cmakerunner.refreshGTests",
-                "title": "Refresh"
-            },
-            {
-                "command": "cmakerunner.filterGTests",
-                "title": "Filter"
-            },
-            {
-                "command": "cmakerunner.clearGTestFilter",
-                "title": "Clear Filter"
+                "title": "Refresh GTests"
             },
             {
                 "command": "cmakerunner.runTarget",
@@ -110,22 +102,6 @@
                 "icon": {
                     "light": "resources/run-light.svg",
                     "dark": "resources/run-dark.svg"
-                }
-            },
-            {
-                "command": "cmakerunner.runGTestCase",
-                "title": "Run GTest Case",
-                "icon": {
-                    "light": "resources/run-light.svg",
-                    "dark": "resources/run-dark.svg"
-                }
-            },
-            {
-                "command": "cmakerunner.debugGTestCase",
-                "title": "Debug GTest Case",
-                "icon": {
-                    "light": "resources/debug-light.svg",
-                    "dark": "resources/debug-dark.svg"
                 }
             },
             {
@@ -155,10 +131,6 @@
                 {
                     "id": "cmakerunner.targets",
                     "name": "Targets"
-                },
-                {
-                    "id": "cmakerunner.gtests",
-                    "name": "GTests"
                 }
             ]
         },
@@ -177,21 +149,6 @@
                 {
                     "command": "cmakerunner.clearTargetFilter",
                     "when": "view == cmakerunner.targets && cmakerunner.targetsFilterActive",
-                    "group": "navigation@2"
-                },
-                {
-                    "command": "cmakerunner.refreshGTests",
-                    "when": "view == cmakerunner.gtests",
-                    "group": "navigation"
-                },
-                {
-                    "command": "cmakerunner.filterGTests",
-                    "when": "view == cmakerunner.gtests",
-                    "group": "navigation@1"
-                },
-                {
-                    "command": "cmakerunner.clearGTestFilter",
-                    "when": "view == cmakerunner.gtests && cmakerunner.gtestsFilterActive",
                     "group": "navigation@2"
                 }
             ],
@@ -227,21 +184,6 @@
                     "command": "cmakerunner.debugTarget",
                     "when": "view == cmakerunner.targets && viewItem == target",
                     "group": "inline@3"
-                },
-                {
-                    "command": "cmakerunner.runGTestCase",
-                    "when": "view == cmakerunner.gtests && viewItem == gtestTarget",
-                    "group": "inline@1"
-                },
-                {
-                    "command": "cmakerunner.runGTestCase",
-                    "when": "view == cmakerunner.gtests && viewItem == gtestCase",
-                    "group": "inline@1"
-                },
-                {
-                    "command": "cmakerunner.debugGTestCase",
-                    "when": "view == cmakerunner.gtests && viewItem == gtestCase",
-                    "group": "inline@2"
                 }
             ]
         },
@@ -272,11 +214,6 @@
                     "type": "boolean",
                     "default": true,
                     "description": "Clear the shared terminal before starting a build or run task."
-                },
-                "cmakerunner.debug.type": {
-                    "type": "string",
-                    "default": "",
-                    "description": "Debug configuration type written into launch.json. Leave empty to use the platform default: cppvsdbg on Windows, lldb on Linux/macOS."
                 }
             }
         }

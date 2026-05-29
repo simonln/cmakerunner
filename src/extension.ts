@@ -1,25 +1,20 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { GTestCaseInfo, GTestRunResult, PresetInfo, TargetInfo } from './models';
+import { PresetInfo, TargetInfo } from './models';
 import { ConfigurationManager } from './services/configurationManager';
 import { MappingEngine } from './services/mappingEngine';
 import { OutputLogger } from './services/outputLogger';
 import { PresetProvider } from './services/presetProvider';
 import { TaskExecutionEngine } from './services/taskExecutionEngine';
-import { findGTestSourceLocation } from './services/gtestSourceLocator';
+import { GTestTestController } from './services/testController';
 import { WorkflowManager } from './services/workflowManager';
 import { getRegexFilterError } from './ui/filterMatcher';
-import { GTestCaseTreeItem, GTestTargetTreeItem, GTestTreeDataProvider } from './ui/gtestTreeDataProvider';
 import { PresetTreeDataProvider, PresetTreeItem } from './ui/presetTreeDataProvider';
 import { SourceTreeItem, TargetTreeDataProvider, TargetTreeItem } from './ui/targetTreeDataProvider';
 import { relativeDisplayPath } from './utils';
 
 interface TargetQuickPickItem extends vscode.QuickPickItem {
   readonly target?: TargetInfo;
-}
-
-interface GTestQuickPickItem extends vscode.QuickPickItem {
-  readonly filterText: string;
 }
 
 interface RegexFilterQuickPickItem extends vscode.QuickPickItem {
@@ -46,10 +41,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const workflowManager = new WorkflowManager(configurationManager, taskExecutionEngine, logger);
   const presetTreeDataProvider = new PresetTreeDataProvider();
   const targetTreeDataProvider = new TargetTreeDataProvider();
-  const gtestTreeDataProvider = new GTestTreeDataProvider(async (target) => {
-    const preset = ensurePreset();
-    return preset ? workflowManager.listGTestCases(preset, target) : undefined;
-  });
+  const testController = new GTestTestController(configurationManager, logger);
 
   logger.info(`Extension activated for workspace: ${workspaceRoot}`);
 
@@ -63,12 +55,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     showCollapseAll: true,
   });
 
-  const gtestsTreeView = vscode.window.createTreeView('cmakerunner.gtests', {
-    treeDataProvider: gtestTreeDataProvider,
-    showCollapseAll: true,
-  });
-
-  context.subscriptions.push(outputChannel, presetsTreeView, targetsTreeView, gtestsTreeView);
+  context.subscriptions.push(outputChannel, presetsTreeView, targetsTreeView, testController);
 
   const updateTargetViewState = async (): Promise<void> => {
     const filterText = targetTreeDataProvider.getFilterText();
@@ -86,41 +73,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     await updateTargetViewState();
   };
 
-  const updateGTestViewState = async (): Promise<void> => {
-    const filterText = gtestTreeDataProvider.getFilterText();
-    gtestsTreeView.description = filterText
-      ? `${gtestTreeDataProvider.isFilterRegex() ? 'Regex' : 'Filter'}: ${filterText}`
-      : undefined;
-    const stateMessage = gtestTreeDataProvider.getMessage();
-    gtestsTreeView.message = stateMessage ?? (
-      filterText && await gtestTreeDataProvider.getVisibleTargetCount() === 0
-        ? 'No GoogleTest case matches the current filter.'
-        : undefined
-    );
-    await vscode.commands.executeCommand('setContext', 'cmakerunner.gtestsFilterActive', !!filterText);
-  };
-
-  const applyGTestFilter = async (filterText: string, options?: { isRegex?: boolean }): Promise<void> => {
-    gtestTreeDataProvider.setFilterText(filterText, options);
-    await updateGTestViewState();
-  };
-
-  const recordGTestRunResult = (target: TargetInfo) => (result: GTestRunResult): void => {
-    gtestTreeDataProvider.recordRunResults(target, [result]);
-  };
-
   let presets: PresetInfo[] = [];
   let currentPreset: PresetInfo | undefined;
-  let selectedTargetId: string | undefined;
-
-  const isTargetBuilt = async (target: TargetInfo): Promise<boolean> => {
-    try {
-      await vscode.workspace.fs.stat(vscode.Uri.file(target.guessedExecutablePath));
-      return true;
-    } catch {
-      return false;
-    }
-  };
 
   const getTargetType = (target: TargetInfo): string => target.type ?? 'EXECUTABLE';
   const isRunnableTarget = (target: TargetInfo): boolean => getTargetType(target) === 'EXECUTABLE';
@@ -136,30 +90,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     return false;
   };
 
-  const resolveSelectedTarget = (): TargetInfo | undefined => {
-    if (!selectedTargetId) {
-      return undefined;
-    }
-
-    return mappingEngine.getTargets().find((target) => target.id === selectedTargetId);
-  };
-
-  const updateGTestSelection = async (target: TargetInfo | undefined): Promise<void> => {
-    const nextTargetId = target?.id;
-    const selectionChanged = selectedTargetId !== nextTargetId;
-    selectedTargetId = nextTargetId;
-    if (selectionChanged && gtestTreeDataProvider.getFilterText()) {
-      gtestTreeDataProvider.setFilterText('');
-    }
-    const selectedTarget = target && isRunnableTarget(target) ? target : undefined;
-    const isBuilt = selectedTarget ? await isTargetBuilt(selectedTarget) : false;
-    gtestTreeDataProvider.setSelectedTarget(selectedTarget, isBuilt);
-    await updateGTestViewState();
-  };
-
   const selectTarget = async (target: TargetInfo | undefined): Promise<void> => {
-    await updateGTestSelection(target);
-
     if (!target) {
       return;
     }
@@ -179,9 +110,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const selectPreset = async (preset: PresetInfo): Promise<void> => {
     logger.info(`Selecting preset: ${preset.name}`);
     currentPreset = preset;
+    testController.setPreset(currentPreset);
     await context.workspaceState.update('cmakerunner.selectedPreset', currentPreset.name);
     presetTreeDataProvider.setPresets(presets, currentPreset.name);
-    // await updateTargets();
 
     const presetTreeItem = presetTreeDataProvider.findItem(currentPreset.name);
     if (presetTreeItem) {
@@ -202,18 +133,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const targets = mappingEngine.getTargets();
      //   logger.info(`Resolved ${targets.length} mapped target(s) for preset ${currentPreset.name}`);
       targetTreeDataProvider.setTargets(targets, currentPreset.sourceDir, activeFile);
-      gtestTreeDataProvider.setTargets(targets);
+      testController.setPreset(currentPreset);
+      testController.setTargets(targets);
       await updateTargetViewState();
-      await updateGTestSelection(resolveSelectedTarget());
+      await testController.discover();
      //   await revealActiveSource(activeFile);
       return;
     }
 
     logger.warn('Skipping target update because no preset is selected');
     targetTreeDataProvider.setTargets([], workspaceRoot, activeFile);
-    gtestTreeDataProvider.setTargets([]);
+    testController.setPreset(undefined);
+    testController.setTargets([]);
     await updateTargetViewState();
-    await updateGTestSelection(undefined);
+    await testController.discover();
   };
 
   const refresh = async (preferredPresetName?: string): Promise<void> => {
@@ -228,7 +161,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     // logger.info(`Refresh completed. presets=${presets.length}, selected=${currentPreset?.name ?? 'none'}`);
     presetTreeDataProvider.setPresets(presets, currentPreset?.name);
-    // await updateTargets();
+    testController.setPreset(currentPreset);
   };
 
   const ensurePreset = (): PresetInfo | undefined => {
@@ -498,63 +431,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     });
   };
 
-  const buildGTestFilterItems = (target: TargetInfo, testCases: readonly GTestCaseInfo[]): GTestQuickPickItem[] => {
-    const suites = new Map<string, GTestCaseInfo[]>();
-    for (const testCase of testCases) {
-      const suiteCases = suites.get(testCase.suite) ?? [];
-      suites.set(testCase.suite, [...suiteCases, testCase]);
-    }
-
-    return [
-      {
-        label: target.displayName,
-        description: path.basename(target.guessedExecutablePath),
-        detail: 'Target executable',
-        filterText: target.displayName,
-      },
-      ...Array.from(suites.entries()).map(([suite, cases]) => ({
-        label: suite,
-        description: `${cases.length} case${cases.length === 1 ? '' : 's'}`,
-        detail: cases.map((testCase) => testCase.name).join(', '),
-        filterText: suite,
-      })),
-      ...testCases.map((testCase) => ({
-        label: testCase.filter,
-        description: testCase.suite,
-        detail: 'GoogleTest case',
-        filterText: testCase.filter,
-      })),
-    ];
-  };
-
-  const pickGTestFilter = async (): Promise<RegexFilterPick<GTestQuickPickItem> | undefined> => {
-    const stateMessage = gtestTreeDataProvider.getMessage();
-    if (stateMessage) {
-      void vscode.window.showWarningMessage(stateMessage);
-      return undefined;
-    }
-
-    const target = resolveSelectedTarget();
-    if (!target) {
-      void vscode.window.showWarningMessage('Select a target to filter GoogleTest cases.');
-      return undefined;
-    }
-
-    const testCases = await gtestTreeDataProvider.getAllTestCases(target);
-    if (testCases.length === 0) {
-      void vscode.window.showWarningMessage(`No GoogleTest cases were found in ${target.displayName}.`);
-      return undefined;
-    }
-
-    return pickRegexFilter(buildGTestFilterItems(target, testCases), {
-      title: 'Filter GTests',
-      placeHolder: 'Example: MathTest, Math.*Adds, ^StringTest\\.',
-      regexDetail: 'Match target names, suites, case names, and full filters',
-      matchOnDescription: true,
-      matchOnDetail: true,
-    });
-  };
-
   const revealActiveSource = async (filePath: string | undefined): Promise<void> => {
     targetTreeDataProvider.setActiveSourcePath(filePath);
 
@@ -577,21 +453,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     } catch (error) {
       logger.warn(`Unable to reveal active source ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
     }
-  };
-
-  const openGTestCaseSource = async (item: GTestCaseTreeItem): Promise<void> => {
-    const location = await findGTestSourceLocation(item.testCase, item.target.sourceFiles);
-    if (!location) {
-      logger.warn(`Unable to locate source for GoogleTest case ${item.testCase.filter}`);
-      void vscode.window.showWarningMessage(`Unable to locate source for GoogleTest case ${item.testCase.filter}.`);
-      return;
-    }
-
-    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(location.filePath));
-    const editor = await vscode.window.showTextDocument(document);
-    const position = new vscode.Position(location.line, location.character);
-    editor.selection = new vscode.Selection(position, position);
-    editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
   };
 
   context.subscriptions.push(
@@ -619,31 +480,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await applyTargetFilter('');
     }),
     vscode.commands.registerCommand('cmakerunner.refreshGTests', async () => {
-      gtestTreeDataProvider.refresh();
-      await updateGTestSelection(resolveSelectedTarget());
-    }),
-    vscode.commands.registerCommand('cmakerunner.filterGTests', async () => {
-      const pick = await pickGTestFilter();
-      if (!pick) {
-        return;
-      }
-
-      if (pick.type === 'regex') {
-        await applyGTestFilter(pick.filterText, { isRegex: true });
-        return;
-      }
-
-      await applyGTestFilter(pick.item.filterText);
-    }),
-    vscode.commands.registerCommand('cmakerunner.clearGTestFilter', async () => {
-      await applyGTestFilter('');
-    }),
-    vscode.commands.registerCommand('cmakerunner.openGTestCaseSource', async (item?: GTestCaseTreeItem) => {
-      if (!(item instanceof GTestCaseTreeItem)) {
-        return;
-      }
-
-      await openGTestCaseSource(item);
+      await testController.discover();
     }),
     vscode.commands.registerCommand('cmakerunner.selectPreset', async (item?: PresetTreeItem) => {
       if (!item) {
@@ -733,7 +570,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
       await selectTarget(target);
       await workflowManager.buildTarget(preset, target);
-      await updateGTestSelection(target);
+      await testController.discover();
     }),
     vscode.commands.registerCommand('cmakerunner.buildTargetFromCurrentFile', async () => {
       const preset = ensurePreset();
@@ -753,7 +590,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
       await selectTarget(pick.target);
       await workflowManager.buildTarget(preset, pick.target);
-      await updateGTestSelection(pick.target);
+      await testController.discover();
     }),
     vscode.commands.registerCommand('cmakerunner.runTarget', async (item?: TargetTreeItem | SourceTreeItem) => {
       const preset = ensurePreset();
@@ -771,76 +608,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
       await workflowManager.runTarget(preset, target);
-      await updateGTestSelection(target);
-    }),
-    vscode.commands.registerCommand('cmakerunner.runGTestCase', async (
-      item?: TargetTreeItem | SourceTreeItem | GTestTargetTreeItem | GTestCaseTreeItem,
-    ) => {
-      const preset = ensurePreset();
-      if (!preset) {
-        return;
-      }
-
-      if (item instanceof GTestCaseTreeItem) {
-        await updateGTestSelection(item.target);
-        gtestTreeDataProvider.clearRunResults(item.target, [item.testCase]);
-        await workflowManager.runGTestCase(
-          preset,
-          item.target,
-          true,
-          item.testCase,
-          recordGTestRunResult(item.target),
-        );
-        await updateGTestSelection(item.target);
-        return;
-      }
-
-      if (item instanceof GTestTargetTreeItem) {
-        await updateGTestSelection(item.target);
-        if (gtestTreeDataProvider.getFilterText()) {
-          const testCases = await gtestTreeDataProvider.getVisibleTestCases(item.target);
-          gtestTreeDataProvider.clearRunResults(item.target, testCases);
-          await workflowManager.runGTestCases(
-            preset,
-            item.target,
-            testCases,
-            true,
-            recordGTestRunResult(item.target),
-          );
-        } else {
-          gtestTreeDataProvider.clearRunResults(item.target);
-          await workflowManager.runAllGTestCases(
-            preset,
-            item.target,
-            true,
-            recordGTestRunResult(item.target),
-          );
-        }
-        await updateGTestSelection(item.target);
-        return;
-      }
-
-      const target = await resolveTargetFromArgument(item);
-      if (!target) {
-        return;
-      }
-
-      await selectTarget(target);
-      if (!ensureRunnableTarget(target, 'used to run GoogleTest')) {
-        return;
-      }
-      await workflowManager.runGTestCase(preset, target, true, undefined, recordGTestRunResult(target));
-      await updateGTestSelection(target);
-    }),
-    vscode.commands.registerCommand('cmakerunner.debugGTestCase', async (item?: GTestCaseTreeItem) => {
-      const preset = ensurePreset();
-      if (!preset || !(item instanceof GTestCaseTreeItem)) {
-        return;
-      }
-
-      await updateGTestSelection(item.target);
-      await workflowManager.debugGTestCase(preset, item.target, item.testCase);
-      await updateGTestSelection(item.target);
     }),
     vscode.commands.registerCommand('cmakerunner.debugTarget', async (item?: TargetTreeItem | SourceTreeItem) => {
       const preset = ensurePreset();
@@ -858,19 +625,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
       await workflowManager.debugTarget(preset, target);
-      await updateGTestSelection(target);
-    }),
-    targetsTreeView.onDidChangeSelection(async (event) => {
-      const [selection] = event.selection;
-      if (selection instanceof TargetTreeItem) {
-        await updateGTestSelection(selection.target);
-        return;
-      }
-
-      if (selection instanceof SourceTreeItem) {
-        const target = mappingEngine.getTargets().find((item) => item.id === selection.targetId);
-        await updateGTestSelection(target);
-      }
     }),
     vscode.window.onDidChangeActiveTextEditor(async (editor) => {
       await revealActiveSource(editor?.document.uri.fsPath);

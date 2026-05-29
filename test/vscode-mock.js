@@ -4,13 +4,44 @@ const path = require('path');
 const projectRoot = process.cwd();
 const registeredCommands = new Map();
 const createdTreeViews = new Map();
+const createdTestControllers = new Map();
 let quickPickController;
 
 function resetMockState() {
   registeredCommands.clear();
   createdTreeViews.clear();
+  createdTestControllers.clear();
   quickPickController = undefined;
   vscode.window.activeTextEditor = undefined;
+}
+
+function createTestItemCollection() {
+  const items = new Map();
+  return {
+    add: (item) => items.set(item.id, item),
+    delete: (id) => items.delete(id),
+    get: (id) => items.get(id),
+    replace: (nextItems) => {
+      items.clear();
+      for (const item of nextItems) {
+        items.set(item.id, item);
+      }
+    },
+    forEach: (callback) => items.forEach((item) => callback(item)),
+    get size() { return items.size; },
+  };
+}
+
+function createTestItem(id, label, uri) {
+  return {
+    id,
+    label,
+    uri,
+    range: undefined,
+    description: undefined,
+    canResolveChildren: false,
+    children: createTestItemCollection(),
+  };
 }
 
 const vscode = {
@@ -183,6 +214,41 @@ const vscode = {
     startDebugging: async () => false,
   },
 
+  extensions: {
+    all: [{ id: 'ms-vscode.cpptools' }],
+  },
+
+  tests: {
+    createTestController: (id, label) => {
+      const controller = {
+        id,
+        label,
+        items: createTestItemCollection(),
+        refreshHandler: undefined,
+        createTestItem,
+        createRunProfile: (name, kind, runHandler, isDefault) => ({ name, kind, runHandler, isDefault, dispose: () => {} }),
+        createTestRun: () => ({
+          enqueued: () => {},
+          started: () => {},
+          passed: () => {},
+          failed: () => {},
+          skipped: () => {},
+          appendOutput: () => {},
+          end: () => {},
+        }),
+        dispose: () => { createdTestControllers.delete(id); },
+      };
+      createdTestControllers.set(id, controller);
+      return controller;
+    },
+  },
+
+  TestRunProfileKind: { Run: 1, Debug: 2, Coverage: 3 },
+
+  TestMessage: class {
+    constructor(message) { this.message = message; }
+  },
+
   tasks: {
     executeTask: async () => ({}),
     onDidEndTaskProcess: () => ({ dispose: () => {} }),
@@ -245,6 +311,7 @@ const vscode = {
   __mock: {
     registeredCommands,
     createdTreeViews,
+    createdTestControllers,
     setQuickPickController: (controller) => {
       quickPickController = controller;
     },

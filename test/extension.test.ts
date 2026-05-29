@@ -2,7 +2,6 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { GTestCaseTreeItem } from '../src/ui/gtestTreeDataProvider';
 import { TargetTreeItem } from '../src/ui/targetTreeDataProvider';
 
 type MockVscode = typeof vscode & {
@@ -15,6 +14,7 @@ type MockVscode = typeof vscode & {
         treeDataProvider?: unknown;
       };
     }>;
+    readonly createdTestControllers: Map<string, unknown>;
     setQuickPickController(controller: ((quickPick: {
       readonly items: readonly vscode.QuickPickItem[];
       selectedItems: readonly vscode.QuickPickItem[];
@@ -267,26 +267,6 @@ describe('extension commands', () => {
     assert.strictEqual(targetsTreeView?.description, undefined);
   });
 
-  it('runGTestCase resolves the active source file target', async () => {
-    await activateExtension();
-
-    let gtestTargetName: string | undefined;
-    const workflowModule = require('../src/services/workflowManager') as typeof import('../src/services/workflowManager');
-    const originalRunGTestCase = workflowModule.WorkflowManager.prototype.runGTestCase;
-    workflowModule.WorkflowManager.prototype.runGTestCase = async (_preset, target) => {
-      gtestTargetName = target.name;
-      return undefined;
-    };
-
-    try {
-      await vscode.commands.executeCommand('cmakerunner.runGTestCase');
-    } finally {
-      workflowModule.WorkflowManager.prototype.runGTestCase = originalRunGTestCase;
-    }
-
-    assert.strictEqual(gtestTargetName, 'app');
-  });
-
   it('runTarget warns and skips workflow for shared-library targets', async () => {
     await activateExtension();
 
@@ -363,285 +343,11 @@ describe('extension commands', () => {
     assert.ok(warnedMessage.includes('cannot be debugged'));
   });
 
-  it('runGTestCase warns and skips workflow for shared-library targets', async () => {
-    await activateExtension();
-
-    const workflowModule = require('../src/services/workflowManager') as typeof import('../src/services/workflowManager');
-    const originalRunGTestCase = workflowModule.WorkflowManager.prototype.runGTestCase;
-    const originalShowWarningMessage = vscode.window.showWarningMessage;
-    let warnedMessage = '';
-    let runCalled = false;
-
-    workflowModule.WorkflowManager.prototype.runGTestCase = async () => {
-      runCalled = true;
-      return undefined;
-    };
-    (vscode.window as any).showWarningMessage = async (message: string) => {
-      warnedMessage = message;
-      return undefined;
-    };
-
-    const libraryTarget = new TargetTreeItem({
-      id: 'mylib',
-      name: 'mylib',
-      displayName: 'mylib',
-      type: 'SHARED_LIBRARY',
-      sourceFiles: [appSourcePath],
-      guessedExecutablePath: path.join(fixtureRoot, 'bin', 'mylib.dll'),
-    });
-
-    try {
-      await vscode.commands.executeCommand('cmakerunner.runGTestCase', libraryTarget);
-    } finally {
-      workflowModule.WorkflowManager.prototype.runGTestCase = originalRunGTestCase;
-      (vscode.window as any).showWarningMessage = originalShowWarningMessage;
-    }
-
-    assert.strictEqual(runCalled, false);
-    assert.ok(warnedMessage.includes('SHARED_LIBRARY'));
-    assert.ok(warnedMessage.includes('used to run GoogleTest'));
-  });
-
-  it('openGTestCaseSource opens the matching source file', async () => {
-    await activateExtension();
-
-    fs.writeFileSync(appSourcePath, [
-      '#include <gtest/gtest.h>',
-      '',
-      'TEST(MathTest, Adds) {',
-      '  ASSERT_TRUE(true);',
-      '}',
-    ].join('\n'));
-
-    let shownEditor: vscode.TextEditor | undefined;
-    (vscode.window as any).showTextDocument = async (document: vscode.TextDocument) => {
-      shownEditor = {
-        document,
-        revealRange: () => undefined,
-      } as unknown as vscode.TextEditor;
-      return shownEditor;
-    };
-
-    const item = new GTestCaseTreeItem({
-      id: 'app',
-      name: 'app',
-      displayName: 'app',
-      sourceFiles: [appSourcePath],
-      guessedExecutablePath: path.join(fixtureRoot, 'bin', 'app'),
-    }, { suite: 'MathTest', name: 'Adds', filter: 'MathTest.Adds' });
-
-    await vscode.commands.executeCommand('cmakerunner.openGTestCaseSource', item);
-
-    assert.strictEqual(shownEditor?.document.uri.fsPath, appSourcePath);
-    assert.strictEqual(shownEditor?.selection.active.line, 2);
-  });
-
-  it('debugGTestCase delegates the selected tree item to the workflow manager', async () => {
-    await activateExtension();
-
-    const workflowModule = require('../src/services/workflowManager') as typeof import('../src/services/workflowManager');
-    const originalDebugGTestCase = workflowModule.WorkflowManager.prototype.debugGTestCase;
-    let debuggedFilter: string | undefined;
-
-    workflowModule.WorkflowManager.prototype.debugGTestCase = async (_preset, _target, testCase) => {
-      debuggedFilter = testCase.filter;
-    };
-
-    const item = new GTestCaseTreeItem({
-      id: 'app',
-      name: 'app',
-      displayName: 'app',
-      sourceFiles: [appSourcePath],
-      guessedExecutablePath: path.join(fixtureRoot, 'bin', 'app'),
-    }, { suite: 'MathTest', name: 'Adds', filter: 'MathTest.Adds' });
-
-    try {
-      await vscode.commands.executeCommand('cmakerunner.debugGTestCase', item);
-    } finally {
-      workflowModule.WorkflowManager.prototype.debugGTestCase = originalDebugGTestCase;
-    }
-
-    assert.strictEqual(debuggedFilter, 'MathTest.Adds');
-  });
-
-  it('creates a GTests view alongside the Targets view', async () => {
+  it('registers GTests in VS Code Test Explorer instead of a custom GTests view', async () => {
     await activateExtension();
 
     assert.ok(mockedVscode.__mock.createdTreeViews.has('cmakerunner.targets'));
-    assert.ok(mockedVscode.__mock.createdTreeViews.has('cmakerunner.gtests'));
-  });
-
-  it('filterGTests applies and clears the gtest view filter', async () => {
-    await activateExtension();
-
-    fs.mkdirSync(path.join(fixtureRoot, 'bin'), { recursive: true });
-    fs.writeFileSync(path.join(fixtureRoot, 'bin', 'app'), '');
-
-    const workflowModule = require('../src/services/workflowManager') as typeof import('../src/services/workflowManager');
-    const originalBuildTarget = workflowModule.WorkflowManager.prototype.buildTarget;
-    const originalListGTestCases = workflowModule.WorkflowManager.prototype.listGTestCases;
-    const pickedLabels: string[][] = [];
-
-    workflowModule.WorkflowManager.prototype.buildTarget = async () => {};
-    workflowModule.WorkflowManager.prototype.listGTestCases = async () => [
-      { suite: 'MathTest', name: 'Adds', filter: 'MathTest.Adds' },
-      { suite: 'MathTest', name: 'Divides', filter: 'MathTest.Divides' },
-      { suite: 'StringTest', name: 'Splits', filter: 'StringTest.Splits' },
-    ];
-    (vscode.window as any).showQuickPick = async (items: readonly { label: string; target?: unknown }[]) => {
-      const quickPickItems = items as Array<{ label: string; target?: unknown }>;
-      pickedLabels.push(quickPickItems.map((item) => item.label));
-      return quickPickItems.find((item) => item.label === 'app');
-    };
-    setQuickPickItemSelection('MathTest', (items) => {
-      pickedLabels.push(items.map((item) => item.label));
-    });
-
-    try {
-      await vscode.commands.executeCommand('cmakerunner.buildTargetFromCurrentFile');
-      await vscode.commands.executeCommand('cmakerunner.filterGTests');
-    } finally {
-      workflowModule.WorkflowManager.prototype.buildTarget = originalBuildTarget;
-      workflowModule.WorkflowManager.prototype.listGTestCases = originalListGTestCases;
-    }
-
-    const gtestsTreeView = mockedVscode.__mock.createdTreeViews.get('cmakerunner.gtests');
-    assert.ok(gtestsTreeView);
-    assert.strictEqual(gtestsTreeView?.description, 'Filter: MathTest');
-    assert.ok(pickedLabels[1].includes('MathTest.Adds'));
-    assert.ok(pickedLabels[1].includes('MathTest.Divides'));
-    assert.ok(pickedLabels[1].includes('StringTest.Splits'));
-
-    await vscode.commands.executeCommand('cmakerunner.clearGTestFilter');
-    assert.strictEqual(gtestsTreeView?.description, undefined);
-  });
-
-  it('filterGTests applies typed regular expressions to all matching test cases', async () => {
-    await activateExtension();
-
-    fs.mkdirSync(path.join(fixtureRoot, 'bin'), { recursive: true });
-    fs.writeFileSync(path.join(fixtureRoot, 'bin', 'app'), '');
-
-    const workflowModule = require('../src/services/workflowManager') as typeof import('../src/services/workflowManager');
-    const originalBuildTarget = workflowModule.WorkflowManager.prototype.buildTarget;
-    const originalListGTestCases = workflowModule.WorkflowManager.prototype.listGTestCases;
-
-    workflowModule.WorkflowManager.prototype.buildTarget = async () => {};
-    workflowModule.WorkflowManager.prototype.listGTestCases = async () => [
-      { suite: 'MathTest', name: 'Adds', filter: 'MathTest.Adds' },
-      { suite: 'MathTest', name: 'Divides', filter: 'MathTest.Divides' },
-      { suite: 'StringTest', name: 'Splits', filter: 'StringTest.Splits' },
-    ];
-    (vscode.window as any).showQuickPick = async (items: readonly { label: string; target?: unknown }[]) => {
-      const quickPickItems = items as Array<{ label: string; target?: unknown }>;
-      return quickPickItems.find((item) => item.label === 'app');
-    };
-    setRegexQuickPickInput('^MathTest\\.');
-
-    try {
-      await vscode.commands.executeCommand('cmakerunner.buildTargetFromCurrentFile');
-      await vscode.commands.executeCommand('cmakerunner.filterGTests');
-
-      const gtestsTreeView = mockedVscode.__mock.createdTreeViews.get('cmakerunner.gtests') as any;
-      const provider = gtestsTreeView?.options.treeDataProvider;
-      const [targetItem] = await provider.getChildren();
-      const cases = await provider.getChildren(targetItem);
-
-      assert.strictEqual(gtestsTreeView?.description, 'Regex: ^MathTest\\.');
-      assert.deepStrictEqual(cases.map((item: { label: string }) => item.label), ['Adds', 'Divides']);
-    } finally {
-      workflowModule.WorkflowManager.prototype.buildTarget = originalBuildTarget;
-      workflowModule.WorkflowManager.prototype.listGTestCases = originalListGTestCases;
-    }
-  });
-
-  it('runGTestCase runs visible filtered cases when invoked from a gtest target', async () => {
-    await activateExtension();
-
-    fs.mkdirSync(path.join(fixtureRoot, 'bin'), { recursive: true });
-    fs.writeFileSync(path.join(fixtureRoot, 'bin', 'app'), '');
-
-    const workflowModule = require('../src/services/workflowManager') as typeof import('../src/services/workflowManager');
-    const originalBuildTarget = workflowModule.WorkflowManager.prototype.buildTarget;
-    const originalListGTestCases = workflowModule.WorkflowManager.prototype.listGTestCases;
-    const originalRunGTestCases = workflowModule.WorkflowManager.prototype.runGTestCases;
-    const originalRunAllGTestCases = workflowModule.WorkflowManager.prototype.runAllGTestCases;
-    let ranAll = false;
-    let filters: string[] = [];
-
-    workflowModule.WorkflowManager.prototype.buildTarget = async () => {};
-    workflowModule.WorkflowManager.prototype.listGTestCases = async () => [
-      { suite: 'MathTest', name: 'Adds', filter: 'MathTest.Adds' },
-      { suite: 'MathTest', name: 'Divides', filter: 'MathTest.Divides' },
-      { suite: 'StringTest', name: 'Splits', filter: 'StringTest.Splits' },
-    ];
-    workflowModule.WorkflowManager.prototype.runGTestCases = async (_preset, _target, testCases) => {
-      filters = testCases.map((testCase) => testCase.filter);
-      return undefined;
-    };
-    workflowModule.WorkflowManager.prototype.runAllGTestCases = async () => {
-      ranAll = true;
-      return undefined;
-    };
-    (vscode.window as any).showQuickPick = async (items: readonly { label: string; target?: unknown }[]) => {
-      const quickPickItems = items as Array<{ label: string; target?: unknown }>;
-      return quickPickItems.find((item) => item.label === 'app');
-    };
-    setQuickPickItemSelection('MathTest');
-
-    try {
-      await vscode.commands.executeCommand('cmakerunner.buildTargetFromCurrentFile');
-      await vscode.commands.executeCommand('cmakerunner.filterGTests');
-      const gtestsTreeView = mockedVscode.__mock.createdTreeViews.get('cmakerunner.gtests') as any;
-      const provider = gtestsTreeView?.options.treeDataProvider;
-      const [targetItem] = await provider.getChildren();
-
-      await vscode.commands.executeCommand('cmakerunner.runGTestCase', targetItem);
-    } finally {
-      workflowModule.WorkflowManager.prototype.buildTarget = originalBuildTarget;
-      workflowModule.WorkflowManager.prototype.listGTestCases = originalListGTestCases;
-      workflowModule.WorkflowManager.prototype.runGTestCases = originalRunGTestCases;
-      workflowModule.WorkflowManager.prototype.runAllGTestCases = originalRunAllGTestCases;
-    }
-
-    assert.strictEqual(ranAll, false);
-    assert.deepStrictEqual(filters, ['MathTest.Adds', 'MathTest.Divides']);
-  });
-
-  it('clears the gtest filter when switching to a different target', async () => {
-    await activateExtension();
-
-    fs.mkdirSync(path.join(fixtureRoot, 'bin'), { recursive: true });
-    fs.writeFileSync(path.join(fixtureRoot, 'bin', 'app'), '');
-
-    const workflowModule = require('../src/services/workflowManager') as typeof import('../src/services/workflowManager');
-    const originalBuildTarget = workflowModule.WorkflowManager.prototype.buildTarget;
-    const originalListGTestCases = workflowModule.WorkflowManager.prototype.listGTestCases;
-    let targetPickCount = 0;
-
-    workflowModule.WorkflowManager.prototype.buildTarget = async () => {};
-    workflowModule.WorkflowManager.prototype.listGTestCases = async () => [
-      { suite: 'MathTest', name: 'Adds', filter: 'MathTest.Adds' },
-    ];
-
-    (vscode.window as any).showQuickPick = async (items: readonly { label: string; target?: unknown }[]) => {
-      const quickPickItems = items as Array<{ label: string; target?: unknown }>;
-      targetPickCount += 1;
-      return quickPickItems.find((item) => item.label === (targetPickCount === 1 ? 'app' : 'demo'));
-    };
-    setQuickPickItemSelection('MathTest');
-
-    try {
-      await vscode.commands.executeCommand('cmakerunner.buildTargetFromCurrentFile');
-      await vscode.commands.executeCommand('cmakerunner.filterGTests');
-      await vscode.commands.executeCommand('cmakerunner.buildTargetFromCurrentFile');
-    } finally {
-      workflowModule.WorkflowManager.prototype.buildTarget = originalBuildTarget;
-      workflowModule.WorkflowManager.prototype.listGTestCases = originalListGTestCases;
-    }
-
-    const gtestsTreeView = mockedVscode.__mock.createdTreeViews.get('cmakerunner.gtests');
-    assert.ok(gtestsTreeView);
-    assert.strictEqual(gtestsTreeView?.description, undefined);
+    assert.ok(!mockedVscode.__mock.createdTreeViews.has('cmakerunner.gtests'));
+    assert.ok(mockedVscode.__mock.createdTestControllers.has('cmakerunner.gtests'));
   });
 });

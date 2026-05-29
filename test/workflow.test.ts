@@ -33,8 +33,16 @@ describe('workflow manager', () => {
       getPresetConfigureCommand: () => 'cmake --preset debug',
       getBuildCommand: () => 'cmake --build /tmp/build/debug --target app',
       getRunCommand: () => '/tmp/build/debug/app',
-      getDebugType: () => 'cppdbg',
       resolveDebugProgram: () => '/tmp/build/debug/app',
+      createDebugConfiguration: (options: { name: string; program: string; cwd: string; args: string[]; env?: Record<string, string> }) => ({
+        name: options.name,
+        type: 'cppdbg',
+        request: 'launch',
+        program: options.program,
+        cwd: options.cwd,
+        args: options.args,
+        env: options.env,
+      }),
     };
     const taskExecutionEngine = {
       executeBuild: async () => ({ exitCode: 0 }),
@@ -92,44 +100,36 @@ describe('workflow manager', () => {
     }
   });
 
-  it('buildTarget updates launch configuration when user chooses Debug', async () => {
+  it('buildTarget starts debugger when user chooses Debug', async () => {
     const deps = createDeps();
-    let updatedConfigurations: Record<string, unknown>[] = [];
+    let startedConfiguration: Record<string, unknown> | undefined;
     const originalShowInformationMessage = vscode.window.showInformationMessage;
-    const originalGetConfiguration = vscode.workspace.getConfiguration;
+    const originalStartDebugging = vscode.debug.startDebugging;
     (vscode.window as any).showInformationMessage = async (message: string) => {
       if (message.includes('built successfully')) {
         return 'Debug';
       }
       return undefined;
     };
-    (vscode.workspace as any).getConfiguration = (section?: string, scope?: vscode.Uri) => {
-      if (section === 'launch' && scope) {
-        return {
-          get: () => [],
-          update: async (_key: string, value: Record<string, unknown>[]) => {
-            updatedConfigurations = value;
-          },
-        };
-      }
-      return originalGetConfiguration(section as never, scope);
+    (vscode.debug as any).startDebugging = async (_folder: vscode.WorkspaceFolder, configuration: Record<string, unknown>) => {
+      startedConfiguration = configuration;
+      return true;
     };
     try {
       const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
       await manager.buildTarget(preset, target);
-      assert.strictEqual(updatedConfigurations.length, 1);
-      assert.deepStrictEqual(updatedConfigurations[0], {
+      assert.deepStrictEqual(startedConfiguration, {
         name: 'Debug App',
         type: 'cppdbg',
-        expressions: undefined,
         request: 'launch',
         program: '/tmp/build/debug/app',
         cwd: '/tmp/build/debug',
         args: [],
+        env: undefined,
       });
     } finally {
       (vscode.window as any).showInformationMessage = originalShowInformationMessage;
-      (vscode.workspace as any).getConfiguration = originalGetConfiguration;
+      (vscode.debug as any).startDebugging = originalStartDebugging;
     }
   });
 
@@ -485,37 +485,17 @@ describe('workflow manager', () => {
     }
   });
 
-  it('debugGTestCase writes launch configuration and starts the selected test case', async () => {
+  it('debugGTestCase starts the selected test case directly', async () => {
     const deps = createDeps();
-    deps.configurationManager.getDebugType = () => 'lldb';
     const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cmakerunner-workflow-'));
-    const existingConfiguration = {
-      name: 'Keep Me',
-      type: 'cppdbg',
-      request: 'launch',
-      program: '/tmp/keep',
-    };
-    let updatedConfigurations: Record<string, unknown>[] = [];
     let startedConfiguration: Record<string, unknown> | undefined;
 
     const originalWorkspaceFolders = vscode.workspace.workspaceFolders;
-    const originalGetConfiguration = vscode.workspace.getConfiguration;
     const originalStartDebugging = vscode.debug.startDebugging;
 
     (vscode.workspace as { workspaceFolders?: typeof vscode.workspace.workspaceFolders }).workspaceFolders = [
       { uri: { fsPath: tempRoot } } as unknown as vscode.WorkspaceFolder,
     ];
-    (vscode.workspace as any).getConfiguration = (section?: string, scope?: vscode.Uri) => {
-      if (section === 'launch' && scope) {
-        return {
-          get: () => [existingConfiguration],
-          update: async (_key: string, value: Record<string, unknown>[]) => {
-            updatedConfigurations = value;
-          },
-        };
-      }
-      return originalGetConfiguration(section as never, scope);
-    };
     (vscode.debug as any).startDebugging = async (_folder: vscode.WorkspaceFolder, configuration: Record<string, unknown>) => {
       startedConfiguration = configuration;
       return true;
@@ -526,18 +506,14 @@ describe('workflow manager', () => {
       await manager.debugGTestCase(preset, target, { suite: 'MathTest', name: 'Adds', filter: 'MathTest.Adds' }, false);
     } finally {
       (vscode.workspace as { workspaceFolders?: typeof vscode.workspace.workspaceFolders }).workspaceFolders = originalWorkspaceFolders;
-      (vscode.workspace as any).getConfiguration = originalGetConfiguration;
       (vscode.debug as any).startDebugging = originalStartDebugging;
     }
 
     try {
-      assert.ok(fs.existsSync(path.join(tempRoot, '.vscode', 'launch.json')));
-      assert.strictEqual(updatedConfigurations.length, 2);
-      assert.deepStrictEqual(updatedConfigurations[0], existingConfiguration);
-      assert.deepStrictEqual(updatedConfigurations[1], {
+      assert.ok(!fs.existsSync(path.join(tempRoot, '.vscode', 'launch.json')));
+      assert.deepStrictEqual(startedConfiguration, {
         name: 'Debug MathTest.Adds',
-        type: 'lldb',
-        expressions: 'native',
+        type: 'cppdbg',
         request: 'launch',
         program: '/tmp/build/debug/app',
         cwd: '/tmp/build/debug',
@@ -547,7 +523,6 @@ describe('workflow manager', () => {
           LSAN_OPTIONS: 'detect_leaks=0',
         },
       });
-      assert.deepStrictEqual(startedConfiguration, updatedConfigurations[1]);
     } finally {
       fs.rmSync(tempRoot, { recursive: true, force: true });
     }
@@ -580,61 +555,39 @@ describe('workflow manager', () => {
     }
   });
 
-  it('debugTarget opens Run and Debug when requested after writing launch configuration', async () => {
+  it('debugTarget starts the debugger directly', async () => {
     const deps = createDeps();
-    let executedCommand = '';
-    const originalShowInformationMessage = vscode.window.showInformationMessage;
-    const originalExecuteCommand = vscode.commands.executeCommand;
-    const originalGetConfiguration = vscode.workspace.getConfiguration;
-    (vscode.window as any).showInformationMessage = async () => 'Open Run and Debug';
-    (vscode.commands as any).executeCommand = async (command: string) => {
-      executedCommand = command;
-      return undefined;
-    };
-    (vscode.workspace as any).getConfiguration = (section?: string, scope?: vscode.Uri) => {
-      if (section === 'launch' && scope) {
-        return {
-          get: () => [],
-          update: async () => undefined,
-        };
-      }
-      return originalGetConfiguration(section as never, scope);
+    let startedConfiguration: Record<string, unknown> | undefined;
+    const originalStartDebugging = vscode.debug.startDebugging;
+    (vscode.debug as any).startDebugging = async (_folder: vscode.WorkspaceFolder, configuration: Record<string, unknown>) => {
+      startedConfiguration = configuration;
+      return true;
     };
     try {
       const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
       await manager.debugTarget(preset, target);
-      assert.strictEqual(executedCommand, 'workbench.view.debug');
+      assert.deepStrictEqual(startedConfiguration, {
+        name: 'Debug App',
+        type: 'cppdbg',
+        request: 'launch',
+        program: '/tmp/build/debug/app',
+        cwd: '/tmp/build/debug',
+        args: [],
+        env: undefined,
+      });
     } finally {
-      (vscode.window as any).showInformationMessage = originalShowInformationMessage;
-      (vscode.commands as any).executeCommand = originalExecuteCommand;
-      (vscode.workspace as any).getConfiguration = originalGetConfiguration;
+      (vscode.debug as any).startDebugging = originalStartDebugging;
     }
   });
 
-  it('debugTarget keeps existing launch configuration when overwrite is not confirmed', async () => {
+  it('debugTarget does not update launch configuration', async () => {
     const deps = createDeps();
     let updated = false;
-    const originalShowWarningMessage = vscode.window.showWarningMessage;
     const originalGetConfiguration = vscode.workspace.getConfiguration;
-    const existingConfigurations = [{
-      name: 'Debug App',
-      type: 'cppdbg',
-      request: 'launch',
-      program: '/tmp/build/debug/app',
-      cwd: '/tmp/build/debug',
-      args: [],
-    }];
-
-    (vscode.window as any).showWarningMessage = async (message: string) => {
-      if (message.includes('launch.json already contains')) {
-        return undefined;
-      }
-      return undefined;
-    };
     (vscode.workspace as any).getConfiguration = (section?: string, scope?: vscode.Uri) => {
       if (section === 'launch' && scope) {
         return {
-          get: () => existingConfigurations,
+          get: () => [],
           update: async () => {
             updated = true;
           },
@@ -648,7 +601,6 @@ describe('workflow manager', () => {
       await manager.debugTarget(preset, target);
       assert.strictEqual(updated, false);
     } finally {
-      (vscode.window as any).showWarningMessage = originalShowWarningMessage;
       (vscode.workspace as any).getConfiguration = originalGetConfiguration;
     }
   });
