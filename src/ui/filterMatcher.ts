@@ -27,7 +27,7 @@ export function createFilterMatcher(
   return {
     text: trimmed,
     isRegex: false,
-    matches: (value) => normalizeValue(value).includes(query),
+    matches: (value) => normalizeValue(value).toLocaleLowerCase().includes(query.toLocaleLowerCase()),
   };
 }
 
