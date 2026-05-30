@@ -60,7 +60,6 @@ export class MappingEngine {
   };
 
   public async rebuild(preset: PresetInfo): Promise<void> {
-    // this.logger.info(`Rebuilding source-to-target mapping for preset ${preset.name}`);
     try {
       const fileApiIndex = await this.buildIndexFromFileApi(preset);
       if (fileApiIndex.targets.size > 0) {
@@ -118,8 +117,6 @@ export class MappingEngine {
     const codemodel = parseJsonBuffer<FileApiCodemodel>(codemodelContent).value;
     const targets = new Map<string, TargetInfo>();
     const sourceToTargets = new Map<string, string[]>();
-    // this.logger.info(`Reading CMake File API index ${indexPath.fsPath}`);
-    // this.logger.info(`Reading CMake File API codemodel ${codemodelPath.fsPath}`);
 
     const configurations = codemodel.configurations ?? [];
     const hasMultipleConfigurations = configurations.length > 1;
@@ -163,8 +160,6 @@ export class MappingEngine {
           sourceFiles,
           guessedExecutablePath: executablePath,
         });
-
-        // this.logger.info(`Mapped executable target ${target.name} with ${sourceFiles.length} source file(s)`);
 
         for (const sourceFile of sourceFiles) {
           const sourceKey = normalizePath(sourceFile);

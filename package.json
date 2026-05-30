@@ -31,6 +31,7 @@
         "watch": "node ./node_modules/typescript/bin/tsc -watch -p ./",
         "package:vsix": "node -e \"require('fs').mkdirSync('dist', { recursive: true })\" && npx @vscode/vsce package --allow-missing-repository --out ./dist",
         "test": "npm run compile && node test/run-unit.js",
+        "test:coverage": "npm run compile && node test/run-coverage.js",
         "test:watch": "npm run compile && node -r ./test/vscode-mock.js ./node_modules/mocha/bin/mocha --timeout 10000 'out/test/**/*.test.js' --watch"
     },
     "devDependencies": {
@@ -39,7 +40,6 @@
         "@types/vscode": "^1.85.0",
         "c8": "^9.1.0",
         "mocha": "^10.4.0",
-        "nyc": "^18.0.0",
         "typescript": "^5.4.5"
     },
     "contributes": {

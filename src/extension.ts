@@ -131,13 +131,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (currentPreset) {
       await mappingEngine.rebuild(currentPreset);
       const targets = mappingEngine.getTargets();
-     //   logger.info(`Resolved ${targets.length} mapped target(s) for preset ${currentPreset.name}`);
       targetTreeDataProvider.setTargets(targets, currentPreset.sourceDir, activeFile);
       testController.setPreset(currentPreset);
       testController.setTargets(targets);
       await updateTargetViewState();
       await testController.discover();
-     //   await revealActiveSource(activeFile);
       return;
     }
 
@@ -150,7 +148,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
 
   const refresh = async (preferredPresetName?: string): Promise<void> => {
-    // logger.info(`Refreshing presets. preferredPreset=${preferredPresetName ?? 'none'}`);
     presets = await presetProvider.loadPresets();
     const storedPresetName = preferredPresetName ?? context.workspaceState.get<string>('cmakerunner.selectedPreset');
     currentPreset = presets.find((preset) => preset.name === storedPresetName) ?? presets[0];
@@ -159,7 +156,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await context.workspaceState.update('cmakerunner.selectedPreset', currentPreset.name);
     }
 
-    // logger.info(`Refresh completed. presets=${presets.length}, selected=${currentPreset?.name ?? 'none'}`);
     presetTreeDataProvider.setPresets(presets, currentPreset?.name);
     testController.setPreset(currentPreset);
   };
@@ -232,13 +228,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const resolveTargetFromArgument = async (value?: TargetTreeItem | SourceTreeItem): Promise<TargetInfo | undefined> => {
     if (value instanceof TargetTreeItem) {
-    //   logger.info(`Resolved target from tree item: ${value.target.name}`);
       return value.target;
     }
 
     if (value instanceof SourceTreeItem) {
       const target = mappingEngine.findTargetsBySource(value.sourcePath)[0];
-    //   logger.info(`Resolved target from source item ${value.sourcePath}: ${target?.name ?? 'none'}`);
       return target;
     }
 
@@ -254,7 +248,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       logger.warn(`No target mapping found for active file: ${activePath}`);
       void vscode.window.showWarningMessage('The active source file is not mapped to any executable target.');
     }
-    // logger.info(`Resolved target from active editor ${activePath}: ${target?.name ?? 'none'}`);
     return target;
   };
 
@@ -292,14 +285,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     return false;
   };
 
-  const pickTarget = async (options?: { userActiveFile?: boolean }): Promise<TargetQuickPickItem | undefined> => {
-    const targets = getAutoFilteredTargets(options?.userActiveFile == true);
-    if (!ensureDiscoveredTargets(targets)) {
-      return undefined;
-    }
-
+  const createTargetQuickPickItems = (targets: readonly TargetInfo[]): TargetQuickPickItem[] => {
     const quickPickSourceDir = currentPreset?.sourceDir ?? workspaceRoot;
-    const items: TargetQuickPickItem[] = targets.map((target) => ({
+    return targets.map((target) => ({
       label: target.displayName,
       description: path.basename(target.guessedExecutablePath),
       detail: `${target.sourceFiles.length} source file${target.sourceFiles.length === 1 ? '' : 's'}: ${target.sourceFiles
@@ -307,6 +295,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         .join(', ')}`,
       target,
     }));
+  };
+
+  const showPresetBuildSuccess = (preset: PresetInfo, actionLabel: string): void => {
+    const targets = mappingEngine.getTargets();
+    const targetSummary = targets.length > 0
+      ? targets.map((target) => target.displayName).join(', ')
+      : 'No executable targets were found.';
+
+    void vscode.window.showInformationMessage(
+      `Preset ${preset.displayName} ${actionLabel} successfully. Targets: ${targetSummary}`,
+    );
+  };
+
+  const pickTarget = async (options?: { userActiveFile?: boolean }): Promise<TargetQuickPickItem | undefined> => {
+    const targets = getAutoFilteredTargets(options?.userActiveFile == true);
+    if (!ensureDiscoveredTargets(targets)) {
+      return undefined;
+    }
+
+    const items = createTargetQuickPickItems(targets);
 
     if (options?.userActiveFile && items.length === 1) {
       return items[0];
@@ -412,15 +420,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       return undefined;
     }
 
-    const quickPickSourceDir = currentPreset?.sourceDir ?? workspaceRoot;
-    const items: TargetQuickPickItem[] = targets.map((target) => ({
-      label: target.displayName,
-      description: path.basename(target.guessedExecutablePath),
-      detail: `${target.sourceFiles.length} source file${target.sourceFiles.length === 1 ? '' : 's'}: ${target.sourceFiles
-        .map((sourcePath) => relativeDisplayPath(sourcePath, quickPickSourceDir))
-        .join(', ')}`,
-      target,
-    }));
+    const items = createTargetQuickPickItems(targets);
 
     return pickRegexFilter(items, {
       title: 'Filter Targets',
@@ -500,7 +500,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await selectPreset(item.preset);
     }),
     vscode.commands.registerCommand('cmakerunner.buildPreset', async (item?: PresetTreeItem) => {
-    //   logger.info(`Build preset command invoked. requestedPreset=${item?.preset.name ?? currentPreset?.name ?? 'none'}`);
       const preset = item?.preset ?? ensurePreset();
       if (!preset) {
         return;
@@ -516,15 +515,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
 
       await updateTargets();
-
-      const targets = mappingEngine.getTargets();
-      const targetSummary = targets.length > 0
-        ? targets.map((target) => target.displayName).join(', ')
-        : 'No executable targets were found.';
-
-      void vscode.window.showInformationMessage(
-        `Preset ${preset.displayName} configured successfully. Targets: ${targetSummary}`,
-      );
+      showPresetBuildSuccess(preset, 'configured');
     }),
     vscode.commands.registerCommand('cmakerunner.rebuildPreset', async (item?: PresetTreeItem) => {
       const preset = item?.preset ?? ensurePreset();
@@ -547,15 +538,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
 
       await updateTargets();
-
-      const targets = mappingEngine.getTargets();
-      const targetSummary = targets.length > 0
-        ? targets.map((target) => target.displayName).join(', ')
-        : 'No executable targets were found.';
-
-      void vscode.window.showInformationMessage(
-        `Preset ${preset.displayName} rebuilt successfully. Targets: ${targetSummary}`,
-      );
+      showPresetBuildSuccess(preset, 'rebuilt');
     }),
     vscode.commands.registerCommand('cmakerunner.buildTarget', async (item?: TargetTreeItem | SourceTreeItem) => {
       const preset = ensurePreset();
@@ -583,8 +566,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
 
-    // apply filter to target view
-     if (pick.target) {
+      if (pick.target) {
         await applyTargetFilter(pick.target.displayName);
       }
 

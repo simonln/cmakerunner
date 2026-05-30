@@ -34,16 +34,7 @@ export class WorkflowManager {
   }
 
   public async buildTarget(preset: PresetInfo, target: TargetInfo): Promise<void> {
-    const variables = this.createVariables(preset, target);
-    const command = this.configurationManager.getBuildCommand(variables);
-    const built = await this.executeBuildStep({
-      command,
-      label: `Build ${target.displayName} [${preset.name}]`,
-      reveal: vscode.TaskRevealKind.Never,
-      logName: target.name,
-      displayName: target.displayName,
-      failureVerb: 'Build',
-    });
+    const built = await this.buildTargetStep(preset, target, vscode.TaskRevealKind.Never);
 
     if (!built) {
       return;
@@ -65,18 +56,8 @@ export class WorkflowManager {
   }
 
   public async runTarget(preset: PresetInfo, target: TargetInfo, buildFirst = true): Promise<void> {
-    if (buildFirst) {
-      const buildVariables = this.createVariables(preset, target);
-      const built = await this.executeBuildStep({
-        command: this.configurationManager.getBuildCommand(buildVariables),
-        label: `Build ${target.displayName} [${preset.name}]`,
-        logName: target.name,
-        displayName: target.displayName,
-        failureVerb: 'Build',
-      });
-      if (!built) {
-        return;
-      }
+    if (buildFirst && !await this.buildTargetStep(preset, target)) {
+      return;
     }
 
     const runVariables = this.createVariables(preset, target);
@@ -93,18 +74,8 @@ export class WorkflowManager {
     selectedTestCase?: GTestCaseInfo,
     onCaseResult?: (result: GTestRunResult) => void,
   ): Promise<GTestRunSummary | undefined> {
-    if (buildFirst) {
-      const buildVariables = this.createVariables(preset, target);
-      const built = await this.executeBuildStep({
-        command: this.configurationManager.getBuildCommand(buildVariables),
-        label: `Build ${target.displayName} [${preset.name}]`,
-        logName: target.name,
-        displayName: target.displayName,
-        failureVerb: 'Build',
-      });
-      if (!built) {
-        return undefined;
-      }
+    if (buildFirst && !await this.buildTargetStep(preset, target)) {
+      return undefined;
     }
 
     const testCases = selectedTestCase ? [selectedTestCase] : await this.listGTestCases(preset, target);
@@ -152,18 +123,8 @@ export class WorkflowManager {
       return undefined;
     }
 
-    if (buildFirst) {
-      const buildVariables = this.createVariables(preset, target);
-      const built = await this.executeBuildStep({
-        command: this.configurationManager.getBuildCommand(buildVariables),
-        label: `Build ${target.displayName} [${preset.name}]`,
-        logName: target.name,
-        displayName: target.displayName,
-        failureVerb: 'Build',
-      });
-      if (!built) {
-        return undefined;
-      }
+    if (buildFirst && !await this.buildTargetStep(preset, target)) {
+      return undefined;
     }
 
     return this.runGTestCasesSequentially(preset, target, uniqueTestCases, onCaseResult);
@@ -175,18 +136,8 @@ export class WorkflowManager {
     buildFirst = true,
     onCaseResult?: (result: GTestRunResult) => void,
   ): Promise<GTestRunSummary | undefined> {
-    if (buildFirst) {
-      const buildVariables = this.createVariables(preset, target);
-      const built = await this.executeBuildStep({
-        command: this.configurationManager.getBuildCommand(buildVariables),
-        label: `Build ${target.displayName} [${preset.name}]`,
-        logName: target.name,
-        displayName: target.displayName,
-        failureVerb: 'Build',
-      });
-      if (!built) {
-        return undefined;
-      }
+    if (buildFirst && !await this.buildTargetStep(preset, target)) {
+      return undefined;
     }
 
     const testCases = await this.listGTestCases(preset, target);
@@ -208,34 +159,15 @@ export class WorkflowManager {
     testCase: GTestCaseInfo,
     buildFirst = true,
   ): Promise<void> {
-    if (buildFirst) {
-      const buildVariables = this.createVariables(preset, target);
-      const built = await this.executeBuildStep({
-        command: this.configurationManager.getBuildCommand(buildVariables),
-        label: `Build ${target.displayName} [${preset.name}]`,
-        logName: target.name,
-        displayName: target.displayName,
-        failureVerb: 'Build',
-      });
-      if (!built) {
-        return;
-      }
+    if (buildFirst && !await this.buildTargetStep(preset, target)) {
+      return;
     }
 
     await this.prepareGTestDebugging(preset, target, testCase);
   }
 
   public async debugTarget(preset: PresetInfo, target: TargetInfo): Promise<void> {
-    const buildVariables = this.createVariables(preset, target);
-    const built = await this.executeBuildStep({
-      command: this.configurationManager.getBuildCommand(buildVariables),
-      label: `Build ${target.displayName} [${preset.name}]`,
-      logName: target.name,
-      displayName: target.displayName,
-      failureVerb: 'Build',
-    });
-
-    if (built) {
+    if (await this.buildTargetStep(preset, target)) {
       await this.prepareDebugging(preset, target);
     }
   }
@@ -432,6 +364,22 @@ export class WorkflowManager {
     };
   }
 
+  private async buildTargetStep(
+    preset: PresetInfo,
+    target: TargetInfo,
+    reveal = vscode.TaskRevealKind.Always,
+  ): Promise<boolean> {
+    const variables = this.createVariables(preset, target);
+    return this.executeBuildStep({
+      command: this.configurationManager.getBuildCommand(variables),
+      label: `Build ${target.displayName} [${preset.name}]`,
+      reveal,
+      logName: target.name,
+      displayName: target.displayName,
+      failureVerb: 'Build',
+    });
+  }
+
   private async executeBuildStep(options: {
     command: string;
     label: string;
@@ -474,7 +422,6 @@ export class WorkflowManager {
     try {
       await vscode.workspace.fs.createDirectory(queryDir);
       await vscode.workspace.fs.writeFile(queryFile, new Uint8Array());
-    //   this.logger.info(`Prepared CMake File API query at ${queryFile.fsPath}`);
     } catch (error) {
       this.logger.warn(`Unable to prepare CMake File API query for ${preset.name}: ${error instanceof Error ? error.message : String(error)}`);
     }

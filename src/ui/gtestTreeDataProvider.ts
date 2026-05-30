@@ -262,17 +262,13 @@ export class GTestTreeDataProvider implements vscode.TreeDataProvider<Node> {
   }
 
   private getSelectedTarget(): TargetInfo | undefined {
-    if (!this.selectedTargetId) {
-      return undefined;
-    }
-
     return this.targets.find((target) => target.id === this.selectedTargetId);
   }
 
-  private filterVisibleTestCases(target: TargetInfo, testCases: GTestCaseInfo[]): GTestCaseInfo[] {
+  private filterVisibleTestCases(target: TargetInfo, testCases: readonly GTestCaseInfo[]): GTestCaseInfo[] {
     const matcher = this.createFilterMatcher();
     if (!matcher || this.matchesTarget(target, matcher)) {
-      return testCases;
+      return [...testCases];
     }
 
     return testCases.filter((testCase) => this.matchesTestCase(testCase, matcher));
@@ -285,8 +281,8 @@ export class GTestTreeDataProvider implements vscode.TreeDataProvider<Node> {
   }
 
   private matchesTestCase(testCase: GTestCaseInfo, matcher: FilterMatcher): boolean {
-    return matcher.matches(testCase.suite)
-      || matcher.matches(testCase.name)
+    return matcher.matches(testCase.name)
+      || matcher.matches(testCase.suite)
       || matcher.matches(testCase.filter);
   }
 
@@ -295,7 +291,6 @@ export class GTestTreeDataProvider implements vscode.TreeDataProvider<Node> {
   }
 
   private normalizeFilterQuery(value: string): string {
-    const trimmed = value.trim();
-    return trimmed ? normalizePath(trimmed).replace(/\\/g, '/').toLowerCase() : '';
+    return normalizePath(value).replace(/\\/g, '/');
   }
 }

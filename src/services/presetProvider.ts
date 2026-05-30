@@ -133,7 +133,6 @@ export class PresetProvider {
       })
       .sort((left, right) => left.displayName.localeCompare(right.displayName));
 
-    // this.logger.info(`Loaded ${presets.length} visible configure preset(s)`);
     return presets;
   }
 
