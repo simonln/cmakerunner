@@ -99,18 +99,12 @@
             {
                 "command": "cmakerunner.runTarget",
                 "title": "Run Target",
-                "icon": {
-                    "light": "resources/run-light.svg",
-                    "dark": "resources/run-dark.svg"
-                }
+                "icon": "$(testing-run-icon)"
             },
             {
                 "command": "cmakerunner.debugTarget",
                 "title": "Debug Target",
-                "icon": {
-                    "light": "resources/debug-light.svg",
-                    "dark": "resources/debug-dark.svg"
-                }
+                "icon": "$(breakpoints-view-icon)"
             }
         ],
         "viewsContainers": {
