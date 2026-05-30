@@ -1,5 +1,9 @@
 # CMake Runner
 
+## V0.4.1 2026-05-30
+### Bug Fixes
+* Automatically refresh GoogleTest cases in VS Code Testing after a target build completes successfully
+
 ## V0.4.0 2026-05-30
 ### Enhancements
 * Move GoogleTest integration from the custom `GTests` view to VS Code Test Explorer
