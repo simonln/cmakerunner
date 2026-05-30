@@ -119,6 +119,7 @@ export class TaskExecutionEngine {
       return { command, options };
     }
 
+    // for windows dev
     options.executable = process.env.comspec ?? 'cmd.exe';
     options.shellArgs = ['/d', '/s', '/c'];
 
@@ -126,7 +127,7 @@ export class TaskExecutionEngine {
       return { command, options };
     }
 
-    const wrappedCommand = `call "${this.vcvarsallPath}" ${getVcvarsallArchitecture()} >nul 2>&1 && ${command}`;
+    const wrappedCommand = `call "${this.vcvarsallPath}" ${getVcvarsallArchitecture()} >nul 2>&1 && %SYSTEMROOT%\\System32\\chcp.com 65001 >nul 2>&1 && ${command}`;
     this.logger.info(`use vcvarsall, wrappedCommand: ${wrappedCommand}`);
     return {
       command: wrappedCommand,

@@ -38,10 +38,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const presetProvider = new PresetProvider(workspaceRoot, logger);
   const mappingEngine = new MappingEngine(logger);
   const taskExecutionEngine = new TaskExecutionEngine(workspaceRoot, configurationManager, logger);
-  const workflowManager = new WorkflowManager(configurationManager, taskExecutionEngine, logger);
+  const testController = new GTestTestController(configurationManager, logger);
+  const workflowManager = new WorkflowManager(
+    configurationManager,
+    taskExecutionEngine,
+    logger,
+    async (preset, target) => {
+      testController.setPreset(preset);
+      testController.setTargets(mappingEngine.getTargets());
+      await testController.discover();
+      logger.info(`Refreshed GoogleTest cases after building ${target.name}`);
+    },
+  );
   const presetTreeDataProvider = new PresetTreeDataProvider();
   const targetTreeDataProvider = new TargetTreeDataProvider();
-  const testController = new GTestTestController(configurationManager, logger);
 
   logger.info(`Extension activated for workspace: ${workspaceRoot}`);
 
@@ -553,7 +563,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
       await selectTarget(target);
       await workflowManager.buildTarget(preset, target);
-      await testController.discover();
     }),
     vscode.commands.registerCommand('cmakerunner.buildTargetFromCurrentFile', async () => {
       const preset = ensurePreset();
@@ -572,7 +581,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
       await selectTarget(pick.target);
       await workflowManager.buildTarget(preset, pick.target);
-      await testController.discover();
     }),
     vscode.commands.registerCommand('cmakerunner.runTarget', async (item?: TargetTreeItem | SourceTreeItem) => {
       const preset = ensurePreset();

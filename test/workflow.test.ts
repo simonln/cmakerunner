@@ -85,16 +85,21 @@ describe('workflow manager', () => {
   it('buildTarget runs target when user chooses Run', async () => {
     const deps = createDeps();
     let runCount = 0;
+    let shown = '';
     deps.taskExecutionEngine.executeRun = async () => {
       runCount += 1;
       return { exitCode: 0 };
     };
     const originalShowInformationMessage = vscode.window.showInformationMessage;
-    (vscode.window as any).showInformationMessage = async () => 'Run';
+    (vscode.window as any).showInformationMessage = async (message: string) => {
+      shown = message;
+      return 'Run';
+    };
     try {
       const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
       await manager.buildTarget(preset, target);
       assert.strictEqual(runCount, 1);
+      assert.match(shown, /built successfully in \d+(?:\.\d)? (?:ms|s)\./);
     } finally {
       (vscode.window as any).showInformationMessage = originalShowInformationMessage;
     }

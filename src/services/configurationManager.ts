@@ -40,12 +40,9 @@ export class ConfigurationManager {
       name: options.name,
       request: 'launch',
       program: options.program,
-      target: options.program,
-      arguments: quoteArguments(options.args),
       args: [...options.args],
       cwd: options.cwd,
-      env: options.env,
-      environment: toEnvironmentArray(options.env),
+      env: options.env
     });
   }
 
@@ -59,6 +56,7 @@ export class ConfigurationManager {
       return {
         name: 'Debug',
         type: 'lldb',
+        expressions: 'native',
         request: 'launch',
       };
     }

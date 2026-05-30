@@ -12,18 +12,24 @@ interface GTestRunFailure {
   readonly exitCode: number;
 }
 
+interface BuildStepResult {
+  readonly succeeded: boolean;
+  readonly durationMs: number;
+}
+
 export class WorkflowManager {
   public constructor(
     private readonly configurationManager: ConfigurationManager,
     private readonly taskExecutionEngine: TaskExecutionEngine,
     private readonly logger: OutputLogger,
+    private readonly onTargetBuilt?: (preset: PresetInfo, target: TargetInfo) => Thenable<void> | void,
   ) {}
 
   public async buildPreset(preset: PresetInfo): Promise<boolean> {
     await this.ensureCMakeFileApiQuery(preset);
     const variables = this.createPresetVariables(preset);
     const command = this.configurationManager.getPresetConfigureCommand(variables);
-    return this.executeBuildStep({
+    const result = await this.executeBuildStep({
       command,
       label: `Configure [${preset.name}]`,
       reveal: vscode.TaskRevealKind.Never,
@@ -31,17 +37,18 @@ export class WorkflowManager {
       displayName: preset.displayName,
       failureVerb: 'Configure',
     });
+    return result.succeeded;
   }
 
   public async buildTarget(preset: PresetInfo, target: TargetInfo): Promise<void> {
-    const built = await this.buildTargetStep(preset, target, vscode.TaskRevealKind.Never);
+    const buildResult = await this.buildTargetStep(preset, target, vscode.TaskRevealKind.Never);
 
-    if (!built) {
+    if (!buildResult.succeeded) {
       return;
     }
 
     const action = await vscode.window.showInformationMessage(
-      `Target ${target.displayName} built successfully.`,
+      `Target ${target.displayName} built successfully in ${formatDuration(buildResult.durationMs)}.`,
       'Run',
       'Debug',
     );
@@ -56,7 +63,7 @@ export class WorkflowManager {
   }
 
   public async runTarget(preset: PresetInfo, target: TargetInfo, buildFirst = true): Promise<void> {
-    if (buildFirst && !await this.buildTargetStep(preset, target)) {
+    if (buildFirst && !(await this.buildTargetStep(preset, target)).succeeded) {
       return;
     }
 
@@ -74,7 +81,7 @@ export class WorkflowManager {
     selectedTestCase?: GTestCaseInfo,
     onCaseResult?: (result: GTestRunResult) => void,
   ): Promise<GTestRunSummary | undefined> {
-    if (buildFirst && !await this.buildTargetStep(preset, target)) {
+    if (buildFirst && !(await this.buildTargetStep(preset, target)).succeeded) {
       return undefined;
     }
 
@@ -123,7 +130,7 @@ export class WorkflowManager {
       return undefined;
     }
 
-    if (buildFirst && !await this.buildTargetStep(preset, target)) {
+    if (buildFirst && !(await this.buildTargetStep(preset, target)).succeeded) {
       return undefined;
     }
 
@@ -136,7 +143,7 @@ export class WorkflowManager {
     buildFirst = true,
     onCaseResult?: (result: GTestRunResult) => void,
   ): Promise<GTestRunSummary | undefined> {
-    if (buildFirst && !await this.buildTargetStep(preset, target)) {
+    if (buildFirst && !(await this.buildTargetStep(preset, target)).succeeded) {
       return undefined;
     }
 
@@ -159,7 +166,7 @@ export class WorkflowManager {
     testCase: GTestCaseInfo,
     buildFirst = true,
   ): Promise<void> {
-    if (buildFirst && !await this.buildTargetStep(preset, target)) {
+    if (buildFirst && !(await this.buildTargetStep(preset, target)).succeeded) {
       return;
     }
 
@@ -167,7 +174,7 @@ export class WorkflowManager {
   }
 
   public async debugTarget(preset: PresetInfo, target: TargetInfo): Promise<void> {
-    if (await this.buildTargetStep(preset, target)) {
+    if ((await this.buildTargetStep(preset, target)).succeeded) {
       await this.prepareDebugging(preset, target);
     }
   }
@@ -222,7 +229,7 @@ export class WorkflowManager {
       args: [],
     });
 
-    this.logger.info(`Starting debugger for ${target.name}. configuration=${configurationName}, program=${program}`);
+    this.logger.info(`Starting debugger for ${target.name}. configuration=${JSON.stringify(launchConfiguration)}`);
 
     const started = await vscode.debug.startDebugging(workspaceFolder, launchConfiguration);
     if (!started) {
@@ -368,9 +375,9 @@ export class WorkflowManager {
     preset: PresetInfo,
     target: TargetInfo,
     reveal = vscode.TaskRevealKind.Always,
-  ): Promise<boolean> {
+  ): Promise<BuildStepResult> {
     const variables = this.createVariables(preset, target);
-    return this.executeBuildStep({
+    const result = await this.executeBuildStep({
       command: this.configurationManager.getBuildCommand(variables),
       label: `Build ${target.displayName} [${preset.name}]`,
       reveal,
@@ -378,6 +385,24 @@ export class WorkflowManager {
       displayName: target.displayName,
       failureVerb: 'Build',
     });
+
+    if (result.succeeded) {
+      await this.refreshTestsAfterBuild(preset, target);
+    }
+
+    return result;
+  }
+
+  private async refreshTestsAfterBuild(preset: PresetInfo, target: TargetInfo): Promise<void> {
+    if (!this.onTargetBuilt) {
+      return;
+    }
+
+    try {
+      await this.onTargetBuilt(preset, target);
+    } catch (error) {
+      this.logger.warn(`Unable to refresh tests after building ${target.name}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   private async executeBuildStep(options: {
@@ -387,18 +412,26 @@ export class WorkflowManager {
     displayName: string;
     failureVerb: string;
     reveal?: vscode.TaskRevealKind;
-  }): Promise<boolean> {
+  }): Promise<BuildStepResult> {
+    const startedAt = getMonotonicNow();
     const result = await this.taskExecutionEngine.executeBuild(
       options.command,
       options.label,
       options.reveal ?? vscode.TaskRevealKind.Always,
     );
+    const durationMs = Math.max(0, Math.round(getMonotonicNow() - startedAt));
     if (result.exitCode === 0) {
-      return true;
+      return {
+        succeeded: true,
+        durationMs,
+      };
     }
 
     this.reportBuildFailure(options.failureVerb, options.logName, options.displayName, result.exitCode);
-    return false;
+    return {
+      succeeded: false,
+      durationMs,
+    };
   }
 
   private reportBuildFailure(
@@ -426,6 +459,21 @@ export class WorkflowManager {
       this.logger.warn(`Unable to prepare CMake File API query for ${preset.name}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+}
+
+function formatDuration(durationMs: number): string {
+  if (durationMs < 1000) {
+    return `${durationMs} ms`;
+  }
+
+  const seconds = durationMs / 1000;
+  return `${seconds.toFixed(seconds >= 10 ? 0 : 1)} s`;
+}
+
+function getMonotonicNow(): number {
+  return typeof performance !== 'undefined' && typeof performance.now === 'function'
+    ? performance.now()
+    : Date.now();
 }
 
 function execFileText(file: string, args: string[], cwd: string): Promise<string> {
