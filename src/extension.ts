@@ -145,7 +145,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       testController.setPreset(currentPreset);
       testController.setTargets(targets);
       await updateTargetViewState();
-      await testController.discover();
       return;
     }
 
@@ -154,7 +153,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     testController.setPreset(undefined);
     testController.setTargets([]);
     await updateTargetViewState();
-    await testController.discover();
   };
 
   const refresh = async (preferredPresetName?: string): Promise<void> => {

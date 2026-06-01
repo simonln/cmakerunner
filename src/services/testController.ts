@@ -4,7 +4,7 @@ import { execFile } from 'child_process';
 import * as vscode from 'vscode';
 import { GTestCaseInfo, PresetInfo, TargetInfo } from '../models';
 import { normalizePath } from '../utils';
-import { findGTestSourceLocation } from './gtestSourceLocator';
+import { GTestSourceLocation, findGTestSourceLocations } from './gtestSourceLocator';
 import { OutputLogger } from './outputLogger';
 import { parseGTestListOutput } from './workflowManager';
 import { ConfigurationManager } from './configurationManager';
@@ -44,9 +44,12 @@ interface ExecResult {
 export class GTestTestController implements vscode.Disposable {
   private readonly controller: vscode.TestController;
   private readonly nodes = new Map<string, Node>();
+  private readonly executableCaseGroups = new Map<string, Map<string, readonly GTestCaseInfo[]>>();
+  private readonly executableLocations = new Map<string, Promise<Map<string, GTestSourceLocation>>>();
   private preset?: PresetInfo;
   private targets: TargetInfo[] = [];
   private discoverInProgress?: Promise<void>;
+  private discoveryGeneration = 0;
 
   public constructor(
     private readonly configurationManager: ConfigurationManager,
@@ -54,6 +57,14 @@ export class GTestTestController implements vscode.Disposable {
   ) {
     this.controller = vscode.tests.createTestController('cmakerunner.gtests', 'CMake Runner GTests');
     this.controller.refreshHandler = async () => this.discover();
+    this.controller.resolveHandler = async (item) => {
+      if (!item) {
+        await this.discover();
+        return;
+      }
+
+      await this.resolveItem(item);
+    };
     this.controller.createRunProfile('Run', vscode.TestRunProfileKind.Run, (request, token) => this.run(request, token), true);
     this.controller.createRunProfile('Debug', vscode.TestRunProfileKind.Debug, (request, token) => this.debug(request, token), true);
   }
@@ -64,10 +75,12 @@ export class GTestTestController implements vscode.Disposable {
 
   public setPreset(preset: PresetInfo | undefined): void {
     this.preset = preset;
+    this.reset();
   }
 
   public setTargets(targets: readonly TargetInfo[]): void {
     this.targets = [...targets];
+    this.reset();
   }
 
   public async discover(): Promise<void> {
@@ -82,85 +95,193 @@ export class GTestTestController implements vscode.Disposable {
   }
 
   private async discoverExecutables(): Promise<void> {
-    this.controller.items.replace([]);
-    this.nodes.clear();
+    this.reset();
 
     const preset = this.preset;
     if (!preset) {
       return;
     }
 
-    const executablePaths = await findExecutableFiles(preset.binaryDir);
+    const executables = await this.getExecutableCandidates();
+    const executableItems: vscode.TestItem[] = [];
     let discoveredCount = 0;
+    let discoveredNodeCount = 0;
 
-    for (const executablePath of executablePaths) {
-      const listResult = await execFileResult(executablePath, ['--gtest_list_tests'], preset.binaryDir, 15000);
-      if (listResult.exitCode !== 0) {
-        continue;
-      }
-
-      const testCases = parseGTestListOutput(listResult.stdout);
+    for (const executable of executables) {
+      const testCases = await this.listExecutableCases(executable);
       if (testCases.length === 0) {
         continue;
       }
 
-      await this.addExecutable(preset, executablePath, testCases);
-      discoveredCount += testCases.length;
-    }
-
-    this.logger.info(`Registered ${discoveredCount} GoogleTest case(s) from ${executablePaths.length} executable candidate(s) in ${preset.binaryDir}`);
-  }
-
-  private async addExecutable(preset: PresetInfo, executablePath: string, testCases: readonly GTestCaseInfo[]): Promise<void> {
-    const target = this.findTargetForExecutable(executablePath);
-    const executable: TestExecutable = {
-      path: executablePath,
-      cwd: preset.binaryDir,
-      target,
-    };
-    const executableId = createExecutableId(executablePath);
-    const executableItem = this.controller.createTestItem(executableId, target?.displayName ?? path.basename(executablePath), vscode.Uri.file(executablePath));
-    executableItem.description = path.relative(preset.binaryDir, executablePath) || path.basename(executablePath);
-    executableItem.canResolveChildren = false;
-    this.nodes.set(executableId, { kind: 'executable', executable });
-
-    const suites = new Map<string, vscode.TestItem>();
-    for (const testCase of testCases) {
-      let suiteItem = suites.get(testCase.suite);
-      if (!suiteItem) {
-        const suiteId = createSuiteId(executableId, testCase.suite);
-        suiteItem = this.controller.createTestItem(suiteId, testCase.suite, vscode.Uri.file(executablePath));
-        suites.set(testCase.suite, suiteItem);
-        executableItem.children.add(suiteItem);
-        this.nodes.set(suiteId, { kind: 'suite', executable, suite: testCase.suite });
-      }
-
-      const caseId = createCaseId(executableId, testCase.filter);
-      const location = await this.findCaseLocation(executable, testCase);
-      const caseItem = this.controller.createTestItem(
-        caseId,
-        testCase.name,
-        vscode.Uri.file(location?.filePath ?? executablePath),
+      const executableId = createExecutableId(executable.path);
+      const groupedCases = groupCasesBySuite(testCases);
+      this.executableCaseGroups.set(executableId, groupedCases);
+      const executableItem = this.controller.createTestItem(
+        executableId,
+        executable.target?.displayName ?? path.basename(executable.path),
+        vscode.Uri.file(executable.path),
       );
-      caseItem.description = testCase.suite;
-      if (location) {
-        const position = new vscode.Position(location.line, location.character);
-        caseItem.range = new vscode.Range(position, position);
+      executableItem.description = path.relative(preset.binaryDir, executable.path) || path.basename(executable.path);
+      const suiteItems: vscode.TestItem[] = [];
+
+      for (const [suite, suiteTestCases] of groupedCases) {
+        const suiteId = createSuiteId(executableId, suite);
+        const suiteItem = this.controller.createTestItem(suiteId, suite, vscode.Uri.file(executable.path));
+        const caseItems: vscode.TestItem[] = [];
+
+        for (const testCase of suiteTestCases) {
+          const caseId = createCaseId(executableId, testCase.filter);
+          const caseItem = this.controller.createTestItem(caseId, testCase.name);
+          caseItem.description = testCase.suite;
+          caseItems.push(caseItem);
+          this.nodes.set(caseId, { kind: 'case', executable, testCase });
+          discoveredNodeCount += 1;
+          await maybeYieldControl(discoveredNodeCount);
+        }
+
+        suiteItem.children.replace(caseItems);
+        suiteItems.push(suiteItem);
+        this.nodes.set(suiteId, { kind: 'suite', executable, suite });
+        discoveredNodeCount += 1;
+        await maybeYieldControl(discoveredNodeCount);
       }
-      suiteItem.children.add(caseItem);
-      this.nodes.set(caseId, { kind: 'case', executable, testCase });
+
+      executableItem.children.replace(suiteItems);
+      executableItems.push(executableItem);
+      this.nodes.set(executableId, { kind: 'executable', executable });
+      discoveredCount += testCases.length;
+      discoveredNodeCount += 1;
+      await maybeYieldControl(discoveredNodeCount);
     }
 
-    this.controller.items.add(executableItem);
+    this.controller.items.replace(executableItems);
+    const discoveryGeneration = ++this.discoveryGeneration;
+    void this.enrichDiscoveredCaseLocations(discoveryGeneration);
+    this.logger.info(`Registered ${discoveredCount} GoogleTest case(s) from ${executableItems.length} executable candidate(s) in ${preset.binaryDir}`);
   }
 
-  private async findCaseLocation(executable: TestExecutable, testCase: GTestCaseInfo): Promise<{ filePath: string; line: number; character: number } | undefined> {
-    const sourceFiles = executable.target?.sourceFiles ?? [];
-    if (sourceFiles.length === 0) {
-      return undefined;
+  private async resolveItem(_item: vscode.TestItem): Promise<void> {
+    // This controller eagerly registers the full test tree.
+  }
+
+  private async listExecutableCases(executable: TestExecutable): Promise<GTestCaseInfo[]> {
+    const result = await execFileResult(executable.path, ['--gtest_list_tests'], executable.cwd, 15000);
+    if (result.exitCode !== 0) {
+      const message = result.stderr.trim() || result.stdout.trim() || result.error?.message || `Exited with code ${result.exitCode ?? 'unknown'}`;
+      this.logger.warn(`Unable to list GoogleTest cases for ${executable.path}: ${message}`);
+      return [];
     }
 
-    return findGTestSourceLocation(testCase, sourceFiles);
+    return parseGTestListOutput(result.stdout);
+  }
+
+  private async getExecutableLocations(executable: TestExecutable): Promise<Map<string, GTestSourceLocation>> {
+    const executableId = createExecutableId(executable.path);
+    let locationsPromise = this.executableLocations.get(executableId);
+    if (!locationsPromise) {
+      const sourceFiles = executable.target?.sourceFiles ?? [];
+      const allCases = flattenCaseGroups(this.executableCaseGroups.get(executableId));
+      locationsPromise = findGTestSourceLocations(allCases, sourceFiles);
+      this.executableLocations.set(executableId, locationsPromise);
+    }
+
+    return locationsPromise;
+  }
+
+  private reset(): void {
+    this.controller.items.replace([]);
+    this.nodes.clear();
+    this.executableCaseGroups.clear();
+    this.executableLocations.clear();
+    this.discoveryGeneration += 1;
+  }
+
+  private async enrichDiscoveredCaseLocations(discoveryGeneration: number): Promise<void> {
+    for (const [itemId, node] of this.nodes) {
+      if (discoveryGeneration !== this.discoveryGeneration) {
+        return;
+      }
+
+      if (node.kind !== 'executable') {
+        continue;
+      }
+
+      const locations = await this.getExecutableLocations(node.executable);
+      if (discoveryGeneration !== this.discoveryGeneration) {
+        return;
+      }
+
+      this.applyExecutableCaseLocations(itemId, node.executable, locations);
+      await maybeYieldControl(locations.size);
+    }
+  }
+
+  private applyExecutableCaseLocations(
+    executableId: string,
+    executable: TestExecutable,
+    locations: ReadonlyMap<string, GTestSourceLocation>,
+  ): void {
+    const executableItem = this.controller.items.get(executableId);
+    const groupedCases = this.executableCaseGroups.get(executableId);
+    if (!executableItem || !groupedCases) {
+      return;
+    }
+
+    for (const [suite, suiteCases] of groupedCases) {
+      const suiteItem = executableItem.children.get(createSuiteId(executableId, suite));
+      if (!suiteItem) {
+        continue;
+      }
+
+      const caseItems = suiteCases.map((testCase) => {
+        const caseId = createCaseId(executableId, testCase.filter);
+        const location = locations.get(testCase.filter);
+        return createCaseItem(this.controller, executable, caseId, testCase, location);
+      });
+      suiteItem.children.replace(caseItems);
+    }
+
+    if (locations.size > 0) {
+      this.logger.info(`Resolved GoogleTest source locations for ${locations.size} case(s) in ${path.basename(executable.path)}`);
+    }
+  }
+
+  private async getExecutableCandidates(): Promise<TestExecutable[]> {
+    const preset = this.preset;
+    if (!preset) {
+      return [];
+    }
+
+    const seen = new Set<string>();
+    const executables: TestExecutable[] = [];
+    for (const target of this.targets) {
+      if (target.type !== 'EXECUTABLE') {
+        continue;
+      }
+
+      const executablePath = target.guessedExecutablePath;
+      if (!isExecutableCandidate(executablePath)) {
+        continue;
+      }
+
+      const normalizedExecutablePath = normalizePath(executablePath);
+      if (seen.has(normalizedExecutablePath)) {
+        continue;
+      }
+
+      if (!(await fileExists(executablePath))) {
+        continue;
+      }
+
+      seen.add(normalizedExecutablePath);
+      executables.push({
+        path: executablePath,
+        cwd: preset.binaryDir,
+        target,
+      });
+    }
+
+    return executables.sort((left, right) => left.path.localeCompare(right.path));
   }
 
   private async run(request: vscode.TestRunRequest, token: vscode.CancellationToken): Promise<void> {
@@ -250,7 +371,6 @@ export class GTestTestController implements vscode.Disposable {
 
     return cases;
   }
-
   private collectCases(item: vscode.TestItem, exclude: ReadonlySet<string>, cases: Array<{ item: vscode.TestItem; node: CaseNode }>): void {
     if (exclude.has(item.id)) {
       return;
@@ -263,11 +383,6 @@ export class GTestTestController implements vscode.Disposable {
     }
 
     item.children.forEach((child) => this.collectCases(child, exclude, cases));
-  }
-
-  private findTargetForExecutable(executablePath: string): TargetInfo | undefined {
-    const normalizedExecutable = normalizePath(executablePath);
-    return this.targets.find((target) => normalizePath(target.guessedExecutablePath) === normalizedExecutable);
   }
 }
 
@@ -283,43 +398,6 @@ function createCaseId(executableId: string, filter: string): string {
   return `${executableId}:case:${filter}`;
 }
 
-async function findExecutableFiles(root: string): Promise<string[]> {
-  const results: string[] = [];
-  await walkExecutableFiles(root, results, 0);
-  return results.sort((left, right) => left.localeCompare(right));
-}
-
-async function walkExecutableFiles(directory: string, results: string[], depth: number): Promise<void> {
-  if (depth > 8) {
-    return;
-  }
-
-  let entries: Array<[string, import('fs').Dirent]>;
-  try {
-    entries = (await fs.readdir(directory, { withFileTypes: true })).map((entry) => [entry.name, entry]);
-  } catch {
-    return;
-  }
-
-  for (const [name, entry] of entries) {
-    const filePath = path.join(directory, name);
-    if (entry.isDirectory()) {
-      if (!shouldSkipDirectory(name)) {
-        await walkExecutableFiles(filePath, results, depth + 1);
-      }
-      continue;
-    }
-
-    if (entry.isFile() && isExecutableCandidate(filePath)) {
-      results.push(filePath);
-    }
-  }
-}
-
-function shouldSkipDirectory(name: string): boolean {
-  return name === '.cmake' || name === 'CMakeFiles' || name === '_deps';
-}
-
 function isExecutableCandidate(filePath: string): boolean {
   if (process.platform === 'win32') {
     return path.extname(filePath).toLowerCase() === '.exe';
@@ -330,7 +408,7 @@ function isExecutableCandidate(filePath: string): boolean {
 
 function execFileResult(file: string, args: string[], cwd: string, timeout: number): Promise<ExecResult> {
   return new Promise((resolve) => {
-    execFile(file, args, { cwd, timeout, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
+    execFile(file, args, { cwd, timeout, maxBuffer: 8 * 1024 * 1024 }, (error, stdout, stderr) => {
       const nodeError = error as NodeJS.ErrnoException | null;
       const exitCode = typeof nodeError?.code === 'number' ? nodeError.code : error ? 1 : 0;
       resolve({
@@ -366,4 +444,63 @@ function groupCasesByExecutable(cases: Array<{ item: vscode.TestItem; node: Case
   }
 
   return [...groups.values()];
+}
+
+function groupCasesBySuite(testCases: readonly GTestCaseInfo[]): Map<string, readonly GTestCaseInfo[]> {
+  const groupedCases = new Map<string, GTestCaseInfo[]>();
+  for (const testCase of testCases) {
+    const suiteCases = groupedCases.get(testCase.suite) ?? [];
+    suiteCases.push(testCase);
+    groupedCases.set(testCase.suite, suiteCases);
+  }
+
+  return groupedCases;
+}
+
+function flattenCaseGroups(groupedCases: Map<string, readonly GTestCaseInfo[]> | undefined): readonly GTestCaseInfo[] {
+  if (!groupedCases) {
+    return [];
+  }
+
+  return [...groupedCases.values()].flat();
+}
+
+async function maybeYieldControl(nodeCount: number): Promise<void> {
+  if (nodeCount % 250 !== 0) {
+    return;
+  }
+
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+}
+
+function createCaseItem(
+  controller: vscode.TestController,
+  executable: TestExecutable,
+  caseId: string,
+  testCase: GTestCaseInfo,
+  location: GTestSourceLocation | undefined,
+): vscode.TestItem {
+  const caseItem = controller.createTestItem(
+    caseId,
+    testCase.name,
+    location ? vscode.Uri.file(location.filePath) : undefined,
+  );
+  caseItem.description = testCase.suite;
+  if (location) {
+    const position = new vscode.Position(location.line, location.character);
+    caseItem.range = new vscode.Range(position, position);
+  } else {
+    caseItem.range = undefined;
+  }
+
+  return caseItem;
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    const stat = await fs.stat(filePath);
+    return stat.isFile();
+  } catch {
+    return false;
+  }
 }

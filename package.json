@@ -2,7 +2,7 @@
     "name": "cmakerunner",
     "displayName": "CMake Runner",
     "description": "Preset, target, build, run, and debug workflow for CMake-based C++ projects.",
-    "version": "0.4.1",
+    "version": "0.4.2",
     "publisher": "Simon-tools",
     "repository": {
         "type": "git",

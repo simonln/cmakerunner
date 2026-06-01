@@ -9,8 +9,10 @@ export interface GTestSourceLocation {
   readonly character: number;
 }
 
-interface MacroMatch {
-  readonly index: number;
+interface IndexedMacroMatch {
+  readonly suite: string;
+  readonly name: string;
+  readonly location: GTestSourceLocation;
 }
 
 const sourceFileExtensions = new Set([
@@ -30,8 +32,32 @@ export async function findGTestSourceLocation(
   testCase: GTestCaseInfo,
   sourceFiles: readonly string[],
 ): Promise<GTestSourceLocation | undefined> {
-  const suiteCandidates = getSuiteCandidates(testCase.suite);
-  const nameCandidates = getNameCandidates(testCase.name);
+  const locations = await findGTestSourceLocations([testCase], sourceFiles);
+  return locations.get(testCase.filter);
+}
+
+export async function findGTestSourceLocations(
+  testCases: readonly GTestCaseInfo[],
+  sourceFiles: readonly string[],
+): Promise<Map<string, GTestSourceLocation>> {
+  const locations = new Map<string, GTestSourceLocation>();
+  if (testCases.length === 0 || sourceFiles.length === 0) {
+    return locations;
+  }
+
+  const requestedMatches = new Map<string, string[]>();
+  for (const testCase of testCases) {
+    for (const suiteCandidate of getSuiteCandidates(testCase.suite)) {
+      for (const nameCandidate of getNameCandidates(testCase.name)) {
+        const key = createCandidateKey(suiteCandidate, nameCandidate);
+        const filters = requestedMatches.get(key) ?? [];
+        if (!filters.includes(testCase.filter)) {
+          filters.push(testCase.filter);
+        }
+        requestedMatches.set(key, filters);
+      }
+    }
+  }
 
   for (const sourceFile of sourceFiles) {
     if (!isCxxSourceFile(sourceFile)) {
@@ -44,41 +70,44 @@ export async function findGTestSourceLocation(
     }
 
     for (const content of contents) {
-      const match = findMacroMatch(content, suiteCandidates, nameCandidates);
-      if (!match) {
-        continue;
-      }
+      for (const match of findMacroMatches(content, sourceFile)) {
+        const filters = requestedMatches.get(createCandidateKey(match.suite, match.name));
+        if (!filters) {
+          continue;
+        }
 
-      const position = getLineAndCharacter(content, match.index);
-      return {
-        filePath: sourceFile,
-        line: position.line,
-        character: position.character,
-      };
+        for (const filter of filters) {
+          if (!locations.has(filter)) {
+            locations.set(filter, match.location);
+          }
+        }
+      }
     }
   }
 
-  return undefined;
+  return locations;
 }
 
-function findMacroMatch(
-  content: string,
-  suiteCandidates: readonly string[],
-  nameCandidates: readonly string[],
-): MacroMatch | undefined {
+function findMacroMatches(content: string, filePath: string): IndexedMacroMatch[] {
+  const matches: IndexedMacroMatch[] = [];
   gtestMacroPattern.lastIndex = 0;
   let match: RegExpExecArray | null;
 
   while ((match = gtestMacroPattern.exec(content)) !== null) {
     const [, suite, name] = match;
-    if (nameCandidates.includes(name) && suiteCandidates.includes(suite)) {
-      return {
-        index: match.index,
-      };
-    }
+    const position = getLineAndCharacter(content, match.index);
+    matches.push({
+      suite,
+      name,
+      location: {
+        filePath,
+        line: position.line,
+        character: position.character,
+      },
+    });
   }
 
-  return undefined;
+  return matches;
 }
 
 function getSuiteCandidates(suite: string): string[] {
@@ -99,6 +128,10 @@ function getNameCandidates(testName: string): string[] {
   }
 
   return [...candidates];
+}
+
+function createCandidateKey(suite: string, name: string): string {
+  return `${suite}\u0000${name}`;
 }
 
 function isCxxSourceFile(filePath: string): boolean {

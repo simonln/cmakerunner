@@ -1,5 +1,10 @@
 # CMake Runner
 
+## V0.4.2 2026-06-01
+### Bug Fixes
+*  improve Google Test source location discovery and test controller performance， prevent overall jamming
+
+
 ## V0.4.1 2026-05-30
 ### Bug Fixes
 * Automatically refresh GoogleTest cases in VS Code Testing after a target build completes successfully
