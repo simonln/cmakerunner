@@ -56,14 +56,15 @@ describe('workflow manager', () => {
     return { calls, configurationManager, taskExecutionEngine, logger };
   };
 
-  it('buildPreset returns true on successful configure', async () => {
+  it('buildPreset returns success and duration on successful configure', async () => {
     const deps = createDeps();
     const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
     const result = await manager.buildPreset(preset);
-    assert.strictEqual(result, true);
+    assert.strictEqual(result.succeeded, true);
+    assert.ok(result.durationMs >= 0);
   });
 
-  it('buildPreset returns false on configure failure', async () => {
+  it('buildPreset returns failure and duration on configure failure', async () => {
     const deps = createDeps();
     deps.taskExecutionEngine.executeBuild = async () => ({ exitCode: 2 });
     let shown = '';
@@ -75,7 +76,8 @@ describe('workflow manager', () => {
     try {
       const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
       const result = await manager.buildPreset(preset);
-      assert.strictEqual(result, false);
+      assert.strictEqual(result.succeeded, false);
+      assert.ok(result.durationMs >= 0);
       assert.ok(shown.includes('Configure failed'));
     } finally {
       (vscode.window as any).showErrorMessage = originalShowErrorMessage;
@@ -619,7 +621,7 @@ describe('workflow manager', () => {
     try {
       const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
       const result = await manager.buildPreset(preset);
-      assert.strictEqual(result, true);
+      assert.strictEqual(result.succeeded, true);
       assert.ok(deps.calls.some((call) => call.includes('Unable to prepare CMake File API query')));
     } finally {
       (vscode.workspace.fs as any).createDirectory = originalCreateDirectory;

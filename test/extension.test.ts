@@ -350,4 +350,28 @@ describe('extension commands', () => {
     assert.ok(!mockedVscode.__mock.createdTreeViews.has('cmakerunner.gtests'));
     assert.ok(mockedVscode.__mock.createdTestControllers.has('cmakerunner.gtests'));
   });
+
+  it('buildPreset success message shows duration without target details', async () => {
+    const workflowModule = require('../src/services/workflowManager') as typeof import('../src/services/workflowManager');
+    const originalBuildPreset = workflowModule.WorkflowManager.prototype.buildPreset;
+    const originalShowInformationMessage = vscode.window.showInformationMessage;
+    let shownMessage = '';
+
+    workflowModule.WorkflowManager.prototype.buildPreset = async () => ({ succeeded: true, durationMs: 1200 });
+    (vscode.window as any).showInformationMessage = async (message: string) => {
+      shownMessage = message;
+      return undefined;
+    };
+
+    try {
+      await activateExtension();
+      await vscode.commands.executeCommand('cmakerunner.buildPreset');
+    } finally {
+      workflowModule.WorkflowManager.prototype.buildPreset = originalBuildPreset;
+      (vscode.window as any).showInformationMessage = originalShowInformationMessage;
+    }
+
+    assert.strictEqual(shownMessage, 'Preset Debug configured successfully in 1.2 s.');
+    assert.ok(!shownMessage.includes('Targets:'));
+  });
 });

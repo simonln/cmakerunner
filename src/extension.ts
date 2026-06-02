@@ -25,6 +25,15 @@ type RegexFilterPick<T extends vscode.QuickPickItem> =
   | { readonly type: 'item'; readonly item: T }
   | { readonly type: 'regex'; readonly filterText: string };
 
+function formatDuration(durationMs: number): string {
+  if (durationMs < 1000) {
+    return `${durationMs} ms`;
+  }
+
+  const seconds = durationMs / 1000;
+  return `${seconds.toFixed(seconds >= 10 ? 0 : 1)} s`;
+}
+
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
   if (!workspaceFolder) {
@@ -85,6 +94,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   let presets: PresetInfo[] = [];
   let currentPreset: PresetInfo | undefined;
+
+  const refreshPresetTree = (): void => {
+    presetTreeDataProvider.setPresets(presets, currentPreset?.name);
+  };
 
   const getTargetType = (target: TargetInfo): string => target.type ?? 'EXECUTABLE';
   const isRunnableTarget = (target: TargetInfo): boolean => getTargetType(target) === 'EXECUTABLE';
@@ -305,14 +318,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }));
   };
 
-  const showPresetBuildSuccess = (preset: PresetInfo, actionLabel: string): void => {
-    const targets = mappingEngine.getTargets();
-    const targetSummary = targets.length > 0
-      ? targets.map((target) => target.displayName).join(', ')
-      : 'No executable targets were found.';
-
+  const showPresetBuildSuccess = (preset: PresetInfo, actionLabel: string, durationMs: number): void => {
     void vscode.window.showInformationMessage(
-      `Preset ${preset.displayName} ${actionLabel} successfully. Targets: ${targetSummary}`,
+      `Preset ${preset.displayName} ${actionLabel} successfully in ${formatDuration(durationMs)}.`,
     );
   };
 
@@ -517,13 +525,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await selectPreset(preset);
       }
 
-      const configured = await workflowManager.buildPreset(preset);
-      if (!configured) {
+      const buildResult = await workflowManager.buildPreset(preset);
+      if (!buildResult.succeeded) {
         return;
       }
 
+      refreshPresetTree();
       await updateTargets();
-      showPresetBuildSuccess(preset, 'configured');
+      showPresetBuildSuccess(preset, 'configured', buildResult.durationMs);
     }),
     vscode.commands.registerCommand('cmakerunner.rebuildPreset', async (item?: PresetTreeItem) => {
       const preset = item?.preset ?? ensurePreset();
@@ -540,13 +549,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
 
-      const configured = await workflowManager.buildPreset(preset);
-      if (!configured) {
+      const buildResult = await workflowManager.buildPreset(preset);
+      if (!buildResult.succeeded) {
         return;
       }
 
+      refreshPresetTree();
       await updateTargets();
-      showPresetBuildSuccess(preset, 'rebuilt');
+      showPresetBuildSuccess(preset, 'rebuilt', buildResult.durationMs);
     }),
     vscode.commands.registerCommand('cmakerunner.buildTarget', async (item?: TargetTreeItem | SourceTreeItem) => {
       const preset = ensurePreset();

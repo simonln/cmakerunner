@@ -25,11 +25,11 @@ export class WorkflowManager {
     private readonly onTargetBuilt?: (preset: PresetInfo, target: TargetInfo) => Thenable<void> | void,
   ) {}
 
-  public async buildPreset(preset: PresetInfo): Promise<boolean> {
+  public async buildPreset(preset: PresetInfo): Promise<BuildStepResult> {
     await this.ensureCMakeFileApiQuery(preset);
     const variables = this.createPresetVariables(preset);
     const command = this.configurationManager.getPresetConfigureCommand(variables);
-    const result = await this.executeBuildStep({
+    return this.executeBuildStep({
       command,
       label: `Configure [${preset.name}]`,
       reveal: vscode.TaskRevealKind.Never,
@@ -37,7 +37,6 @@ export class WorkflowManager {
       displayName: preset.displayName,
       failureVerb: 'Configure',
     });
-    return result.succeeded;
   }
 
   public async buildTarget(preset: PresetInfo, target: TargetInfo): Promise<void> {

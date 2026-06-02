@@ -1,5 +1,10 @@
 # CMake Runner
 
+## V0.4.3 2026-06-02
+### Enhancements
+* Show preset configure success notifications with build duration only
+* Remove target details from preset configure success notifications
+
 ## V0.4.2 2026-06-01
 ### Bug Fixes
 *  improve Google Test source location discovery and test controller performance， prevent overall jamming
