@@ -47,7 +47,65 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const presetProvider = new PresetProvider(workspaceRoot, logger);
   const mappingEngine = new MappingEngine(logger);
   const taskExecutionEngine = new TaskExecutionEngine(workspaceRoot, configurationManager, logger);
-  const testController = new GTestTestController(configurationManager, logger);
+  let presets: PresetInfo[] = [];
+  let currentPreset: PresetInfo | undefined;
+  let initializationPromise: Promise<void> | undefined;
+
+  const refreshPresetTree = (): void => {
+    presetTreeDataProvider.setPresets(presets, currentPreset?.name);
+  };
+
+  const refresh = async (preferredPresetName?: string): Promise<void> => {
+    presets = await presetProvider.loadPresets();
+    const storedPresetName = preferredPresetName ?? context.workspaceState.get<string>('cmakerunner.selectedPreset');
+    currentPreset = presets.find((preset) => preset.name === storedPresetName) ?? presets[0];
+
+    if (currentPreset) {
+      await context.workspaceState.update('cmakerunner.selectedPreset', currentPreset.name);
+    }
+
+    presetTreeDataProvider.setPresets(presets, currentPreset?.name);
+    testController.setPreset(currentPreset);
+  };
+
+  const updateTargets = async (): Promise<void> => {
+    const activeFile = vscode.window.activeTextEditor?.document.uri.fsPath;
+    logger.info(`Updating targets. preset=${currentPreset?.name ?? 'none'}, activeFile=${activeFile ?? 'none'}`);
+
+    if (currentPreset) {
+      await mappingEngine.rebuild(currentPreset);
+      const targets = mappingEngine.getTargets();
+      targetTreeDataProvider.setTargets(targets, currentPreset.sourceDir, activeFile);
+      testController.setPreset(currentPreset);
+      testController.setTargets(targets);
+      await updateTargetViewState();
+      return;
+    }
+
+    logger.warn('Skipping target update because no preset is selected');
+    targetTreeDataProvider.setTargets([], workspaceRoot, activeFile);
+    testController.setPreset(undefined);
+    testController.setTargets([]);
+    await updateTargetViewState();
+  };
+
+  const ensureInitialized = async (): Promise<void> => {
+    if (initializationPromise) {
+      return initializationPromise;
+    }
+
+    initializationPromise = (async () => {
+      await refresh();
+      await updateTargets();
+    })().catch((error) => {
+      initializationPromise = undefined;
+      throw error;
+    });
+
+    return initializationPromise;
+  };
+
+  const testController = new GTestTestController(configurationManager, logger, ensureInitialized);
   const workflowManager = new WorkflowManager(
     configurationManager,
     taskExecutionEngine,
@@ -90,13 +148,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const applyTargetFilter = async (filterText: string, options?: { isRegex?: boolean }): Promise<void> => {
     targetTreeDataProvider.setFilterText(filterText, options);
     await updateTargetViewState();
-  };
-
-  let presets: PresetInfo[] = [];
-  let currentPreset: PresetInfo | undefined;
-
-  const refreshPresetTree = (): void => {
-    presetTreeDataProvider.setPresets(presets, currentPreset?.name);
   };
 
   const getTargetType = (target: TargetInfo): string => target.type ?? 'EXECUTABLE';
@@ -145,40 +196,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // ignore
       }
     }
-  };
-
-  const updateTargets = async (): Promise<void> => {
-    const activeFile = vscode.window.activeTextEditor?.document.uri.fsPath;
-    logger.info(`Updating targets. preset=${currentPreset?.name ?? 'none'}, activeFile=${activeFile ?? 'none'}`);
-
-    if (currentPreset) {
-      await mappingEngine.rebuild(currentPreset);
-      const targets = mappingEngine.getTargets();
-      targetTreeDataProvider.setTargets(targets, currentPreset.sourceDir, activeFile);
-      testController.setPreset(currentPreset);
-      testController.setTargets(targets);
-      await updateTargetViewState();
-      return;
-    }
-
-    logger.warn('Skipping target update because no preset is selected');
-    targetTreeDataProvider.setTargets([], workspaceRoot, activeFile);
-    testController.setPreset(undefined);
-    testController.setTargets([]);
-    await updateTargetViewState();
-  };
-
-  const refresh = async (preferredPresetName?: string): Promise<void> => {
-    presets = await presetProvider.loadPresets();
-    const storedPresetName = preferredPresetName ?? context.workspaceState.get<string>('cmakerunner.selectedPreset');
-    currentPreset = presets.find((preset) => preset.name === storedPresetName) ?? presets[0];
-
-    if (currentPreset) {
-      await context.workspaceState.update('cmakerunner.selectedPreset', currentPreset.name);
-    }
-
-    presetTreeDataProvider.setPresets(presets, currentPreset?.name);
-    testController.setPreset(currentPreset);
   };
 
   const ensurePreset = (): PresetInfo | undefined => {
@@ -471,11 +488,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   };
 
+  const initializeOnVisibleView = async (): Promise<void> => {
+    await ensureInitialized();
+  };
+
   context.subscriptions.push(
     vscode.commands.registerCommand('cmakerunner.refresh', async () => {
+      await ensureInitialized();
       await refresh(currentPreset?.name);
+      await updateTargets();
     }),
     vscode.commands.registerCommand('cmakerunner.filterTargets', async () => {
+      await ensureInitialized();
       const pick = await pickTargetFilter();
       if (!pick) {
         return;
@@ -493,12 +517,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     }),
     vscode.commands.registerCommand('cmakerunner.clearTargetFilter', async () => {
+      await ensureInitialized();
       await applyTargetFilter('');
     }),
     vscode.commands.registerCommand('cmakerunner.refreshGTests', async () => {
       await testController.discover();
     }),
     vscode.commands.registerCommand('cmakerunner.selectPreset', async (item?: PresetTreeItem) => {
+      await ensureInitialized();
       if (!item) {
         const pick = await vscode.window.showQuickPick(
           presets.map((preset) => ({ label: preset.displayName, description: preset.name, preset })),
@@ -516,6 +542,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await selectPreset(item.preset);
     }),
     vscode.commands.registerCommand('cmakerunner.buildPreset', async (item?: PresetTreeItem) => {
+      await ensureInitialized();
       const preset = item?.preset ?? ensurePreset();
       if (!preset) {
         return;
@@ -535,6 +562,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       showPresetBuildSuccess(preset, 'configured', buildResult.durationMs);
     }),
     vscode.commands.registerCommand('cmakerunner.rebuildPreset', async (item?: PresetTreeItem) => {
+      await ensureInitialized();
       const preset = item?.preset ?? ensurePreset();
       if (!preset) {
         return;
@@ -559,6 +587,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       showPresetBuildSuccess(preset, 'rebuilt', buildResult.durationMs);
     }),
     vscode.commands.registerCommand('cmakerunner.buildTarget', async (item?: TargetTreeItem | SourceTreeItem) => {
+      await ensureInitialized();
       const preset = ensurePreset();
       if (!preset) {
         return;
@@ -573,6 +602,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await workflowManager.buildTarget(preset, target);
     }),
     vscode.commands.registerCommand('cmakerunner.buildTargetFromCurrentFile', async () => {
+      await ensureInitialized();
       const preset = ensurePreset();
       if (!preset) {
         return;
@@ -591,6 +621,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await workflowManager.buildTarget(preset, pick.target);
     }),
     vscode.commands.registerCommand('cmakerunner.runTarget', async (item?: TargetTreeItem | SourceTreeItem) => {
+      await ensureInitialized();
       const preset = ensurePreset();
       if (!preset) {
         return;
@@ -608,6 +639,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await workflowManager.runTarget(preset, target);
     }),
     vscode.commands.registerCommand('cmakerunner.debugTarget', async (item?: TargetTreeItem | SourceTreeItem) => {
+      await ensureInitialized();
       const preset = ensurePreset();
       if (!preset) {
         return;
@@ -629,8 +661,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
   );
 
-  await refresh();
-  await updateTargets();
+  if (presetsTreeView.visible || targetsTreeView.visible) {
+    void initializeOnVisibleView();
+  }
+
+  if ('onDidChangeVisibility' in presetsTreeView) {
+    context.subscriptions.push((presetsTreeView as vscode.TreeView<PresetTreeItem>).onDidChangeVisibility(async () => {
+      if (presetsTreeView.visible) {
+        await initializeOnVisibleView();
+      }
+    }));
+  }
+
+  if ('onDidChangeVisibility' in targetsTreeView) {
+    context.subscriptions.push((targetsTreeView as vscode.TreeView<TargetTreeItem | SourceTreeItem>).onDidChangeVisibility(async () => {
+      if (targetsTreeView.visible) {
+        await initializeOnVisibleView();
+      }
+    }));
+  }
 }
 
 export function deactivate(): void {

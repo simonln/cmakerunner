@@ -2,7 +2,7 @@
     "name": "cmakerunner",
     "displayName": "CMake Runner",
     "description": "Preset, target, build, run, and debug workflow for CMake-based C++ projects.",
-    "version": "0.4.3",
+    "version": "0.4.4",
     "publisher": "Simon-tools",
     "repository": {
         "type": "git",
@@ -21,7 +21,9 @@
         "Programming Languages"
     ],
     "activationEvents": [
-        "onWorkspaceContains:CMakePresets.json"
+        "onWorkspaceContains:CMakePresets.json",
+        "onWorkspaceContains:CMakeUserPresets.json",
+        "onStartupFinished"
     ],
     "main": "./out/src/extension.js",
     "scripts": {

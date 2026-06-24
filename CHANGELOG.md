@@ -1,5 +1,15 @@
 # CMake Runner
 
+
+## V0.4.4 2026-06-24
+### Enhancements
+* Activate when the workspace contains `CMakeUserPresets.json` in addition to `CMakePresets.json`
+* Register Test Explorer integration after VS Code startup so GoogleTest refresh is available earlier
+
+### Bug Fixes
+* Defer preset loading and target discovery until a CMake Runner view, command, or Test Explorer action actually needs them
+* Reduce startup overhead by keeping `onStartupFinished` activation lightweight
+
 ## V0.4.3 2026-06-02
 ### Enhancements
 * Show preset configure success notifications with build duration only

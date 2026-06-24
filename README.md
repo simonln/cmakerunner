@@ -6,7 +6,8 @@ It is designed for projects that already use `CMakePresets.json` and want a more
 
 ## What It Does
 
-- Activates automatically when the workspace contains `CMakePresets.json`
+- Activates automatically when the workspace contains `CMakePresets.json` or `CMakeUserPresets.json`
+- Also finishes activation after VS Code startup so Test Explorer integration is available before the first manual refresh
 - Lists available CMake configure presets in the `Presets` view
 - Resolves preset details from `CMakePresets.json` and `CMakeUserPresets.json`, including `include` and `inherits`
 - Associates configure presets with matching CMake build presets when available
@@ -69,7 +70,7 @@ code --install-extension cmakerunner-0.x.x.vsix
 
 ### 1. Open a project
 
-Open a CMake project folder that contains `CMakePresets.json`. The extension activates automatically.
+Open a CMake project folder that contains `CMakePresets.json` or `CMakeUserPresets.json`. The extension activates automatically, and Test Explorer integration is also registered after VS Code startup.
 
 ### 2. Select a preset
 

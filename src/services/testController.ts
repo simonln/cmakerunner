@@ -54,6 +54,7 @@ export class GTestTestController implements vscode.Disposable {
   public constructor(
     private readonly configurationManager: ConfigurationManager,
     private readonly logger: OutputLogger,
+    private readonly ensureInitialized?: () => Promise<void>,
   ) {
     this.controller = vscode.tests.createTestController('cmakerunner.gtests', 'CMake Runner GTests');
     this.controller.refreshHandler = async () => this.discover();
@@ -84,6 +85,8 @@ export class GTestTestController implements vscode.Disposable {
   }
 
   public async discover(): Promise<void> {
+    await this.ensureInitialized?.();
+
     if (this.discoverInProgress) {
       return this.discoverInProgress;
     }
@@ -285,6 +288,7 @@ export class GTestTestController implements vscode.Disposable {
   }
 
   private async run(request: vscode.TestRunRequest, token: vscode.CancellationToken): Promise<void> {
+    await this.ensureInitialized?.();
     await this.discover();
     const run = this.controller.createTestRun(request);
     const cases = this.collectRequestedCases(request);
@@ -316,6 +320,7 @@ export class GTestTestController implements vscode.Disposable {
   }
 
   private async debug(request: vscode.TestRunRequest, token: vscode.CancellationToken): Promise<void> {
+    await this.ensureInitialized?.();
     await this.discover();
     const run = this.controller.createTestRun(request);
     const groupedCases = groupCasesByExecutable(this.collectRequestedCases(request));
