@@ -1,5 +1,9 @@
 # CMake Runner
 
+## V0.4.5 2026-06-25
+### Bug Fixes
+* Fix a VS Code Test Explorer error caused by duplicate GoogleTest item IDs during test case scanning and source-location refresh
+
 
 ## V0.4.4 2026-06-24
 ### Enhancements

@@ -236,12 +236,22 @@ export class GTestTestController implements vscode.Disposable {
         continue;
       }
 
-      const caseItems = suiteCases.map((testCase) => {
+      for (const testCase of suiteCases) {
         const caseId = createCaseId(executableId, testCase.filter);
         const location = locations.get(testCase.filter);
-        return createCaseItem(this.controller, executable, caseId, testCase, location);
-      });
-      suiteItem.children.replace(caseItems);
+        const caseItem = suiteItem.children.get(caseId);
+        if (!caseItem) {
+          suiteItem.children.add(createCaseItem(this.controller, caseId, testCase, location));
+          continue;
+        }
+
+        if (!location) {
+          continue;
+        }
+
+        suiteItem.children.delete(caseId);
+        suiteItem.children.add(createCaseItem(this.controller, caseId, testCase, location));
+      }
     }
 
     if (locations.size > 0) {
@@ -480,7 +490,6 @@ async function maybeYieldControl(nodeCount: number): Promise<void> {
 
 function createCaseItem(
   controller: vscode.TestController,
-  executable: TestExecutable,
   caseId: string,
   testCase: GTestCaseInfo,
   location: GTestSourceLocation | undefined,
