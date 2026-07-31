@@ -53,12 +53,16 @@ describe('workflow manager', () => {
       warn: (message: string) => calls.push(`warn:${message}`),
       error: (message: string) => calls.push(`error:${message}`),
     };
-    return { calls, configurationManager, taskExecutionEngine, logger };
+    const debugSessionManager = {
+      startDebugging: (_folder: vscode.WorkspaceFolder | undefined, configuration: vscode.DebugConfiguration) =>
+        vscode.debug.startDebugging(_folder, configuration),
+    };
+    return { calls, configurationManager, taskExecutionEngine, logger, debugSessionManager };
   };
 
   it('buildPreset returns success and duration on successful configure', async () => {
     const deps = createDeps();
-    const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+    const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
     const result = await manager.buildPreset(preset);
     assert.strictEqual(result.succeeded, true);
     assert.ok(result.durationMs >= 0);
@@ -74,7 +78,7 @@ describe('workflow manager', () => {
       return undefined;
     };
     try {
-      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
       const result = await manager.buildPreset(preset);
       assert.strictEqual(result.succeeded, false);
       assert.ok(result.durationMs >= 0);
@@ -98,7 +102,7 @@ describe('workflow manager', () => {
       return 'Run';
     };
     try {
-      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
       await manager.buildTarget(preset, target);
       assert.strictEqual(runCount, 1);
       assert.match(shown, /built successfully in \d+(?:\.\d)? (?:ms|s)\./);
@@ -123,7 +127,7 @@ describe('workflow manager', () => {
       return true;
     };
     try {
-      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
       await manager.buildTarget(preset, target);
       assert.deepStrictEqual(startedConfiguration, {
         name: 'Debug App',
@@ -148,7 +152,7 @@ describe('workflow manager', () => {
       runCount += 1;
       return { exitCode: 0 };
     };
-    const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+    const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
     await manager.runTarget(preset, target, true);
     assert.strictEqual(runCount, 0);
   });
@@ -163,7 +167,7 @@ describe('workflow manager', () => {
       return undefined;
     };
     try {
-      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
       await manager.buildTarget(preset, target);
       assert.ok(shown.includes('Build failed'));
     } finally {
@@ -187,7 +191,7 @@ describe('workflow manager', () => {
       return undefined;
     };
     try {
-      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
       await manager.buildTarget(preset, target);
       assert.strictEqual(infoCount, 0);
       assert.ok(shown.includes('Build failed'));
@@ -208,7 +212,7 @@ describe('workflow manager', () => {
       return undefined;
     };
     try {
-      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
       await manager.debugTarget(preset, target);
       assert.ok(shown.includes('Build failed'));
     } finally {
@@ -225,7 +229,7 @@ describe('workflow manager', () => {
       runDirectory = cwd ?? '';
       return { exitCode: 0 };
     };
-    const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+    const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
     await manager.runTarget(preset, target, false);
     assert.strictEqual(runCount, 1);
     assert.strictEqual(runDirectory, preset.binaryDir);
@@ -264,7 +268,7 @@ describe('workflow manager', () => {
     (vscode.window as any).showQuickPick = async (items: readonly { label: string }[]) => items[1];
 
     try {
-      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
       await manager.runGTestCase(preset, target, false);
       assert.strictEqual(runCommand, '/tmp/build/debug/app --gtest_filter=SuiteA.TestTwo');
     } finally {
@@ -294,7 +298,7 @@ describe('workflow manager', () => {
     };
 
     try {
-      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
       await manager.runGTestCase(preset, target, false);
       assert.ok(warned.includes('No GoogleTest cases were found'));
       assert.strictEqual(runCount, 0);
@@ -321,7 +325,7 @@ describe('workflow manager', () => {
     (vscode.window as any).showQuickPick = async () => undefined;
 
     try {
-      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
       await manager.runGTestCase(preset, target, false);
       assert.strictEqual(runCount, 0);
     } finally {
@@ -340,7 +344,7 @@ describe('workflow manager', () => {
       return { exitCode: 0 };
     };
 
-    const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+    const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
     await manager.runGTestCases(preset, target, [
       { suite: 'SuiteA', name: 'TestOne', filter: 'SuiteA.TestOne' },
       { suite: 'SuiteA', name: 'TestTwo', filter: 'SuiteA.TestTwo' },
@@ -373,7 +377,7 @@ describe('workflow manager', () => {
     };
 
     try {
-      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
       const streamedResults: string[] = [];
       const result = await manager.runGTestCases(preset, target, [
         { suite: 'SuiteA', name: 'TestOne', filter: 'SuiteA.TestOne' },
@@ -421,7 +425,7 @@ describe('workflow manager', () => {
     };
 
     try {
-      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
       await manager.runGTestCases(preset, target, [], false);
       assert.ok(warned.includes('No GoogleTest cases were selected'));
       assert.strictEqual(runCount, 0);
@@ -445,7 +449,7 @@ describe('workflow manager', () => {
     };
 
     try {
-      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
       await manager.runAllGTestCases(preset, target, false);
       assert.deepStrictEqual(runCommands, [
         '/tmp/build/debug/app --gtest_filter=SuiteA.TestOne',
@@ -478,7 +482,7 @@ describe('workflow manager', () => {
     };
 
     try {
-      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
       await manager.runAllGTestCases(preset, target, false);
       assert.deepStrictEqual(runCommands, [
         '/tmp/build/debug/app --gtest_filter=SuiteA.TestOne',
@@ -509,7 +513,7 @@ describe('workflow manager', () => {
     };
 
     try {
-      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
       await manager.debugGTestCase(preset, target, { suite: 'MathTest', name: 'Adds', filter: 'MathTest.Adds' }, false);
     } finally {
       (vscode.workspace as { workspaceFolders?: typeof vscode.workspace.workspaceFolders }).workspaceFolders = originalWorkspaceFolders;
@@ -551,7 +555,7 @@ describe('workflow manager', () => {
     };
 
     try {
-      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
       const result = await manager.listGTestCases(preset, target);
       assert.strictEqual(result, undefined);
       assert.ok(shown.includes('Unable to list GoogleTest cases'));
@@ -571,7 +575,7 @@ describe('workflow manager', () => {
       return true;
     };
     try {
-      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
       await manager.debugTarget(preset, target);
       assert.deepStrictEqual(startedConfiguration, {
         name: 'Debug App',
@@ -604,7 +608,7 @@ describe('workflow manager', () => {
     };
 
     try {
-      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
       await manager.debugTarget(preset, target);
       assert.strictEqual(updated, false);
     } finally {
@@ -619,7 +623,7 @@ describe('workflow manager', () => {
       throw new Error('mkdir failed');
     };
     try {
-      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never);
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
       const result = await manager.buildPreset(preset);
       assert.strictEqual(result.succeeded, true);
       assert.ok(deps.calls.some((call) => call.includes('Unable to prepare CMake File API query')));

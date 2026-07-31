@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { PresetInfo, TargetInfo } from './models';
 import { ConfigurationManager } from './services/configurationManager';
+import { DebugSessionManager } from './services/debugSessionManager';
 import { MappingEngine } from './services/mappingEngine';
 import { OutputLogger } from './services/outputLogger';
 import { PresetProvider } from './services/presetProvider';
@@ -105,11 +106,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     return initializationPromise;
   };
 
-  const testController = new GTestTestController(configurationManager, logger, ensureInitialized);
+  const debugSessionManager = new DebugSessionManager();
+  const testController = new GTestTestController(configurationManager, logger, debugSessionManager, ensureInitialized);
   const workflowManager = new WorkflowManager(
     configurationManager,
     taskExecutionEngine,
     logger,
+    debugSessionManager,
     async (preset, target) => {
       testController.setPreset(preset);
       testController.setTargets(mappingEngine.getTargets());
@@ -132,7 +135,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     showCollapseAll: true,
   });
 
-  context.subscriptions.push(outputChannel, presetsTreeView, targetsTreeView, testController);
+  context.subscriptions.push(outputChannel, presetsTreeView, targetsTreeView, testController, debugSessionManager);
 
   const updateTargetViewState = async (): Promise<void> => {
     const filterText = targetTreeDataProvider.getFilterText();

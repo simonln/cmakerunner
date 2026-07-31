@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { GTestCaseInfo, GTestRunResult, GTestRunSummary, PresetInfo, TargetInfo } from '../models';
 import { quoteForShell } from '../utils';
 import { ConfigurationManager } from './configurationManager';
+import { DebugSessionManager } from './debugSessionManager';
 import { OutputLogger } from './outputLogger';
 import { TaskExecutionEngine } from './taskExecutionEngine';
 
@@ -22,6 +23,7 @@ export class WorkflowManager {
     private readonly configurationManager: ConfigurationManager,
     private readonly taskExecutionEngine: TaskExecutionEngine,
     private readonly logger: OutputLogger,
+    private readonly debugSessionManager: DebugSessionManager,
     private readonly onTargetBuilt?: (preset: PresetInfo, target: TargetInfo) => Thenable<void> | void,
   ) {}
 
@@ -203,7 +205,7 @@ export class WorkflowManager {
 
     this.logger.info(`Starting debugger for GoogleTest case ${testCase.filter}. configuration=${configurationName}, program=${program}`);
 
-    const started = await vscode.debug.startDebugging(workspaceFolder, launchConfiguration);
+    const started = await this.debugSessionManager.startDebugging(workspaceFolder, launchConfiguration);
     if (!started) {
       void vscode.window.showErrorMessage(`Unable to start debugger for ${testCase.filter}.`);
     }
@@ -230,7 +232,7 @@ export class WorkflowManager {
 
     this.logger.info(`Starting debugger for ${target.name}. configuration=${JSON.stringify(launchConfiguration)}`);
 
-    const started = await vscode.debug.startDebugging(workspaceFolder, launchConfiguration);
+    const started = await this.debugSessionManager.startDebugging(workspaceFolder, launchConfiguration);
     if (!started) {
       void vscode.window.showErrorMessage(`Unable to start debugger for ${target.displayName}.`);
     }

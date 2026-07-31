@@ -8,6 +8,7 @@ import { GTestSourceLocation, findGTestSourceLocations } from './gtestSourceLoca
 import { OutputLogger } from './outputLogger';
 import { parseGTestListOutput } from './workflowManager';
 import { ConfigurationManager } from './configurationManager';
+import { DebugSessionManager } from './debugSessionManager';
 
 interface TestExecutable {
   readonly path: string;
@@ -54,6 +55,7 @@ export class GTestTestController implements vscode.Disposable {
   public constructor(
     private readonly configurationManager: ConfigurationManager,
     private readonly logger: OutputLogger,
+    private readonly debugSessionManager: DebugSessionManager,
     private readonly ensureInitialized?: () => Promise<void>,
   ) {
     this.controller = vscode.tests.createTestController('cmakerunner.gtests', 'CMake Runner GTests');
@@ -299,7 +301,9 @@ export class GTestTestController implements vscode.Disposable {
 
   private async run(request: vscode.TestRunRequest, token: vscode.CancellationToken): Promise<void> {
     await this.ensureInitialized?.();
-    await this.discover();
+    if (this.controller.items.size === 0) {
+      await this.discover();
+    }
     const run = this.controller.createTestRun(request);
     const cases = this.collectRequestedCases(request);
 
@@ -331,7 +335,9 @@ export class GTestTestController implements vscode.Disposable {
 
   private async debug(request: vscode.TestRunRequest, token: vscode.CancellationToken): Promise<void> {
     await this.ensureInitialized?.();
-    await this.discover();
+    if (this.controller.items.size === 0) {
+      await this.discover();
+    }
     const run = this.controller.createTestRun(request);
     const groupedCases = groupCasesByExecutable(this.collectRequestedCases(request));
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -362,7 +368,7 @@ export class GTestTestController implements vscode.Disposable {
       });
 
       this.logger.info(`launchConfiguration=${JSON.stringify(launchConfiguration)}`)
-      const started = await vscode.debug.startDebugging(workspaceFolder, launchConfiguration);
+      const started = await this.debugSessionManager.startDebugging(workspaceFolder, launchConfiguration);
       for (const entry of group.cases) {
         if (started) {
           run.passed(entry.item);

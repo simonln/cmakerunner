@@ -165,6 +165,7 @@ const vscode = {
     }),
     activeTextEditor: undefined,
     onDidChangeActiveTextEditor: () => ({ dispose: () => {} }),
+    onDidOpenTerminal: () => ({ dispose: () => {} }),
   },
 
   commands: {
@@ -212,6 +213,8 @@ const vscode = {
 
   debug: {
     startDebugging: async () => false,
+    onDidStartDebugSession: () => ({ dispose: () => {} }),
+    onDidTerminateDebugSession: () => ({ dispose: () => {} }),
   },
 
   extensions: {

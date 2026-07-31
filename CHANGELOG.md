@@ -1,5 +1,10 @@
 # CMake Runner
 
+## V0.4.6 2026-07-31
+### Enhancements
+* Skip full GoogleTest re-discovery when running or debugging tests, so the Testing view no longer refreshes the whole list on every run
+* Automatically close the integrated terminal created for a debug session once the session ends, preventing terminal session residue after repeated debugging
+
 ## V0.4.5 2026-06-25
 ### Bug Fixes
 * Fix a VS Code Test Explorer error caused by duplicate GoogleTest item IDs during test case scanning and source-location refresh
