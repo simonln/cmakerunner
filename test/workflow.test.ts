@@ -10,10 +10,16 @@ import { parseGTestListOutput, WorkflowManager } from '../src/services/workflowM
 const childProcess = require('child_process') as typeof import('child_process');
 
 describe('workflow manager', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cmakerunner-workflow-'));
+
+  after(() => {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
   const preset: PresetInfo = {
     name: 'debug',
     displayName: 'Debug',
-    binaryDir: '/tmp/build/debug',
+    binaryDir: path.join(tempRoot, 'build', 'debug'),
     sourceDir: '/tmp/src',
     buildPresetName: 'debug-build',
     configuration: 'Debug',

@@ -279,6 +279,10 @@ export class GTestTestController implements vscode.Disposable {
         continue;
       }
 
+      if (!isTestNamedExecutable(executablePath)) {
+        continue;
+      }
+
       const normalizedExecutablePath = normalizePath(executablePath);
       if (seen.has(normalizedExecutablePath)) {
         continue;
@@ -425,6 +429,10 @@ function isExecutableCandidate(filePath: string): boolean {
   }
 
   return path.extname(filePath).toLowerCase() !== '.so';
+}
+
+export function isTestNamedExecutable(filePath: string): boolean {
+  return path.basename(filePath, path.extname(filePath)).toLowerCase().startsWith('test');
 }
 
 function execFileResult(file: string, args: string[], cwd: string, timeout: number): Promise<ExecResult> {

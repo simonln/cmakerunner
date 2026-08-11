@@ -1,5 +1,9 @@
 # CMake Runner
 
+## V0.4.7 2026-08-11
+### Enhancements
+* Only scan executables whose name starts with `test` (case-insensitive) for GoogleTest cases, skipping app executables and speeding up Test Explorer discovery
+
 ## V0.4.6 2026-07-31
 ### Enhancements
 * Skip full GoogleTest re-discovery when running or debugging tests, so the Testing view no longer refreshes the whole list on every run

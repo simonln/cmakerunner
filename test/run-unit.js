@@ -9,6 +9,7 @@ const testFiles = [
   'out/test/models.test.js',
   'out/test/services.test.js',
   'out/test/gtestSourceLocator.test.js',
+  'out/test/testController.test.js',
   'out/test/ui.test.js',
   'out/test/integration.test.js',
   'out/test/workflow.test.js',
