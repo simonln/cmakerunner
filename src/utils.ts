@@ -38,9 +38,23 @@ export function basenameWithoutExecutableExtension(targetName: string): string {
   return parsed.base;
 }
 
-export function replaceTemplateVariables(template: string, variables: Record<string, string | undefined> | object): string {
+export interface TemplateOptions {
+  readonly quoteSpacedValues?: boolean;
+}
+
+export function replaceTemplateVariables(template: string, variables: Record<string, string | undefined> | object, options: TemplateOptions = {}): string {
   const valueMap = variables as Record<string, string | undefined>;
-  return template.replace(/\$\{([^}]+)\}/g, (_, key: string) => valueMap[key] ?? '');
+  return template.replace(/\$\{([^}]+)\}/g, (_, key: string) => {
+    const value = valueMap[key] ?? '';
+    if (!options.quoteSpacedValues) {
+      return value;
+    }
+
+    // Quote bare values that contain spaces, but skip prebuilt command
+    // fragments that already carry their own formatting (leading whitespace,
+    // an already-quoted path, or the PowerShell call operator).
+    return /^[^"&\s]/.test(value) ? quoteForShell(value) : value;
+  });
 }
 
 export function getDefaultExecutablePath(buildDir: string, targetName: string): string {
@@ -58,8 +72,9 @@ export function extractProgramPath(commandOrPath: string): string {
     return trimmed;
   }
 
-  if (trimmed.startsWith('"')) {
-    const closingQuoteIndex = trimmed.indexOf('"', 1);
+  if (trimmed.startsWith('"') || trimmed.startsWith("'")) {
+    const quote = trimmed[0];
+    const closingQuoteIndex = trimmed.indexOf(quote, 1);
     return closingQuoteIndex > 1 ? trimmed.slice(1, closingQuoteIndex) : trimmed.slice(1);
   }
 
@@ -69,6 +84,10 @@ export function extractProgramPath(commandOrPath: string): string {
 
 export function quoteForShell(commandPart: string): string {
   return commandPart.includes(' ') ? `"${commandPart}"` : commandPart;
+}
+
+export function quoteForPowerShell(commandPart: string): string {
+  return `'${commandPart.replace(/'/g, "''")}'`;
 }
 
 export function relativeDisplayPath(filePath: string, sourceDir: string): string {

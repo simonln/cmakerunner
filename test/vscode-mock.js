@@ -50,7 +50,7 @@ const vscode = {
       get: (key, defaultValue) => {
         const defaults = {
           'tasks.presetConfigureCommandTemplate': 'cmake --preset ${preset}',
-          'tasks.buildCommandTemplate': 'cmake --build ${buildDir}${configurationArgument} --target ${target}',
+          'tasks.buildCommandTemplate': 'cmake --build ${buildDir} ${configurationArgument} --target ${target}',
           'tasks.runCommandTemplate': '${executableCommand}',
           'tasks.clearTerminalBeforeRun': true
         };
@@ -305,7 +305,17 @@ const vscode = {
   },
 
   ShellExecution: class {
-    constructor(cmd, opts = {}) { this.command = cmd; this.options = opts; }
+    constructor(cmd, argsOrOpts = {}, opts) {
+      if (Array.isArray(argsOrOpts)) {
+        this.command = cmd;
+        this.args = argsOrOpts;
+        this.options = opts ?? {};
+      } else {
+        this.command = cmd;
+        this.args = [];
+        this.options = argsOrOpts ?? {};
+      }
+    }
   },
 
   ThemeIcon: class {

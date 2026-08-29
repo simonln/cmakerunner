@@ -2,7 +2,7 @@
     "name": "cmakerunner",
     "displayName": "CMake Runner",
     "description": "Preset, target, build, run, and debug workflow for CMake-based C++ projects.",
-    "version": "0.4.7",
+    "version": "0.4.8",
     "publisher": "Simon-tools",
     "repository": {
         "type": "git",
@@ -198,7 +198,7 @@
                 },
                 "cmakerunner.tasks.buildCommandTemplate": {
                     "type": "string",
-                    "default": "cmake --build ${buildDir}${configurationArgument} --target ${target}",
+                    "default": "cmake --build ${buildDir} ${configurationArgument} --target ${target}",
                     "description": "Build command template. Supports ${buildDir}, ${preset}, ${target}, ${sourceDir}, ${buildPreset}, ${configuration}, ${configurationArgument}, ${buildPresetArgument}, ${executablePath}, ${quotedExecutablePath}, and ${executableCommand}."
                 },
                 "cmakerunner.tasks.runCommandTemplate": {

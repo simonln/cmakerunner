@@ -32,6 +32,7 @@ describe('task execution engine', () => {
   };
 
   it('executeBuild creates a build task and resolves process exit codes', async () => {
+    const restorePlatform = setPlatform('linux');
     const originalExecuteTask = vscode.tasks.executeTask;
     const originalOnDidEndTaskProcess = vscode.tasks.onDidEndTaskProcess;
     const originalOnDidEndTask = vscode.tasks.onDidEndTask;
@@ -69,9 +70,10 @@ describe('task execution engine', () => {
       assert.strictEqual(capturedTask?.presentationOptions?.reveal, vscode.TaskRevealKind.Never);
       assert.strictEqual(capturedTask?.presentationOptions?.clear, true);
       assert.strictEqual((capturedTask?.execution as any)?.command, '/bin/sh');
-      assert.deepStrictEqual((capturedTask?.execution as any)?.args, ['-c', "trap 'exit 130' INT; cmake --build build --target app"]);
+      assert.deepStrictEqual((capturedTask?.execution as any)?.args, ['-c', 'trap "exit 130" INT; cmake --build build --target app']);
       assert.ok(taskListener);
     } finally {
+      restorePlatform();
       (vscode.tasks as any).executeTask = originalExecuteTask;
       (vscode.tasks as any).onDidEndTaskProcess = originalOnDidEndTaskProcess;
       (vscode.tasks as any).onDidEndTask = originalOnDidEndTask;
@@ -196,7 +198,7 @@ describe('task execution engine', () => {
 
       assert.strictEqual((capturedTask?.execution as any)?.options?.executable, process.env.comspec ?? 'cmd.exe');
       assert.deepStrictEqual((capturedTask?.execution as any)?.options?.shellArgs, ['/d', '/s', '/c']);
-      assert.ok(String((capturedTask?.execution as any)?.command).includes(`call "${vcvarsallPath}" x64 >nul 2>&1 && cmake --preset debug`));
+      assert.ok(String((capturedTask?.execution as any)?.command).includes(`call "${vcvarsallPath}" x64 >nul 2>&1 && %SYSTEMROOT%\\System32\\chcp.com 65001 >nul 2>&1 && cmake --preset debug`));
     } finally {
       if (originalVsInstallDir === undefined) {
         delete process.env.VSINSTALLDIR;
@@ -216,8 +218,10 @@ describe('task execution engine', () => {
     const originalOnDidEndTaskProcess = vscode.tasks.onDidEndTaskProcess;
     const originalOnDidEndTask = vscode.tasks.onDidEndTask;
     const originalVsInstallDir = process.env.VSINSTALLDIR;
+    const originalProgramFilesX86 = process.env['ProgramFiles(x86)'];
 
     delete process.env.VSINSTALLDIR;
+    process.env['ProgramFiles(x86)'] = path.join(__dirname, 'fixtures', 'empty-programfiles');
 
     const execution = { id: 'plain-cmake-build' };
     let capturedTask: vscode.Task | undefined;
@@ -249,6 +253,11 @@ describe('task execution engine', () => {
       } else {
         process.env.VSINSTALLDIR = originalVsInstallDir;
       }
+      if (originalProgramFilesX86 === undefined) {
+        delete process.env['ProgramFiles(x86)'];
+      } else {
+        process.env['ProgramFiles(x86)'] = originalProgramFilesX86;
+      }
       restorePlatform();
       (vscode.tasks as any).executeTask = originalExecuteTask;
       (vscode.tasks as any).onDidEndTaskProcess = originalOnDidEndTaskProcess;
@@ -257,6 +266,7 @@ describe('task execution engine', () => {
   });
 
   it('wraps non-Windows cmake build commands to preserve Ctrl+C exit status', async () => {
+    const restorePlatform = setPlatform('linux');
     const originalExecuteTask = vscode.tasks.executeTask;
     const originalOnDidEndTaskProcess = vscode.tasks.onDidEndTaskProcess;
     const originalOnDidEndTask = vscode.tasks.onDidEndTask;
@@ -277,15 +287,16 @@ describe('task execution engine', () => {
 
     try {
       const engine = createEngine();
-      const resultPromise = engine.executeBuild('cmake --build build --target app', 'Build app');
+      const resultPromise = engine.executeBuild('cmake --build "/tmp/my build" --target app', 'Build app');
       await Promise.resolve();
       processListener?.({ execution, exitCode: 130 });
       const result = await resultPromise;
 
       assert.strictEqual(result.exitCode, 130);
       assert.strictEqual((capturedTask?.execution as any)?.command, '/bin/sh');
-      assert.deepStrictEqual((capturedTask?.execution as any)?.args, ['-c', "trap 'exit 130' INT; cmake --build build --target app"]);
+      assert.deepStrictEqual((capturedTask?.execution as any)?.args, ['-c', 'trap "exit 130" INT; cmake --build "/tmp/my build" --target app']);
     } finally {
+      restorePlatform();
       (vscode.tasks as any).executeTask = originalExecuteTask;
       (vscode.tasks as any).onDidEndTaskProcess = originalOnDidEndTaskProcess;
       (vscode.tasks as any).onDidEndTask = originalOnDidEndTask;

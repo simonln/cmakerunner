@@ -2,7 +2,7 @@ import * as path from 'path';
 import { execFile } from 'child_process';
 import * as vscode from 'vscode';
 import { GTestCaseInfo, GTestRunResult, GTestRunSummary, PresetInfo, TargetInfo } from '../models';
-import { quoteForShell } from '../utils';
+import { quoteForPowerShell, quoteForShell } from '../utils';
 import { ConfigurationManager } from './configurationManager';
 import { DebugSessionManager } from './debugSessionManager';
 import { OutputLogger } from './outputLogger';
@@ -364,11 +364,11 @@ export class WorkflowManager {
       sourceDir: preset.sourceDir,
       buildPreset: preset.buildPresetName,
       configuration,
-      configurationArgument: configuration ? ` --config ${configuration}` : '',
+      configurationArgument: configuration ? ` --config ${quoteForShell(configuration)}` : '',
       executablePath: target.guessedExecutablePath,
       quotedExecutablePath,
-      executableCommand: process.platform === 'win32' ? `& ${quotedExecutablePath}` : quotedExecutablePath,
-      buildPresetArgument: preset.buildPresetName ? ` --preset ${preset.buildPresetName}` : '',
+      executableCommand: process.platform === 'win32' ? `& ${quoteForPowerShell(target.guessedExecutablePath)}` : quotedExecutablePath,
+      buildPresetArgument: preset.buildPresetName ? ` --preset ${quoteForShell(preset.buildPresetName)}` : '',
     };
   }
 

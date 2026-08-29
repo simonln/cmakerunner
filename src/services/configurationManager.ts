@@ -6,15 +6,15 @@ type PresetTaskVariables = Pick<TaskVariables, 'buildDir' | 'preset' | 'sourceDi
 
 export class ConfigurationManager {
   public getPresetConfigureCommand(variables: PresetTaskVariables): string {
-    return replaceTemplateVariables(this.settings().get<string>('tasks.presetConfigureCommandTemplate', ''), variables);
+    return replaceTemplateVariables(this.settings().get<string>('tasks.presetConfigureCommandTemplate', ''), variables, { quoteSpacedValues: true });
   }
 
   public getBuildCommand(variables: TaskVariables): string {
-    return replaceTemplateVariables(this.settings().get<string>('tasks.buildCommandTemplate', ''), variables);
+    return replaceTemplateVariables(this.settings().get<string>('tasks.buildCommandTemplate', ''), variables, { quoteSpacedValues: true });
   }
 
   public getRunCommand(variables: TaskVariables): string {
-    return replaceTemplateVariables(this.settings().get<string>('tasks.runCommandTemplate', ''), variables);
+    return replaceTemplateVariables(this.settings().get<string>('tasks.runCommandTemplate', ''), variables, { quoteSpacedValues: true });
   }
 
   public shouldClearTerminalBeforeRun(): boolean {

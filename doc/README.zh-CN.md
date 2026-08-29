@@ -146,7 +146,7 @@ GoogleTest 用例会注册到 VS Code 内置的 **测试资源管理器**。
 | --- | --- | --- |
 | `cmakerunner.cmakePath` | `""` | 可选的 `cmake` 可执行文件路径，适用于 CMake 随 Visual Studio 安装但未加入 `PATH` 的情况 |
 | `cmakerunner.tasks.presetConfigureCommandTemplate` | `cmake --preset ${preset}` | preset configure 使用的命令模板 |
-| `cmakerunner.tasks.buildCommandTemplate` | `cmake --build ${buildDir}${configurationArgument} --target ${target}` | 目标构建使用的命令模板 |
+| `cmakerunner.tasks.buildCommandTemplate` | `cmake --build ${buildDir} ${configurationArgument} --target ${target}` | 目标构建使用的命令模板 |
 | `cmakerunner.tasks.runCommandTemplate` | `${executableCommand}` | 目标运行使用的命令模板 |
 | `cmakerunner.tasks.clearTerminalBeforeRun` | `true` | build 或 run 前是否清理共享终端 |
 
@@ -183,26 +183,20 @@ GoogleTest 用例会注册到 VS Code 内置的 **测试资源管理器**。
 - `${quotedExecutablePath}`
 - `${executableCommand}`
 
+替换后的值若包含空格会自动加双引号（例如构建目录含空格时 `cmake --build ${buildDir}` 会变成 `cmake --build "C:/My Projects/build"`），路径或名称带空格不会导致命令拼接出错。`${configurationArgument}`、`${executableCommand}` 这类预拼片段自带格式，不会被重复加引号。
+
 ### 配置示例
 
 ```json
 {
   "cmakerunner.tasks.presetConfigureCommandTemplate": "cmake --preset ${preset}",
-  "cmakerunner.tasks.buildCommandTemplate": "cmake --build ${buildDir}${configurationArgument} --target ${target}",
+  "cmakerunner.tasks.buildCommandTemplate": "cmake --build ${buildDir} ${configurationArgument} --target ${target}",
   "cmakerunner.tasks.runCommandTemplate": "${executableCommand}",
   "cmakerunner.tasks.clearTerminalBeforeRun": true
 }
 ```
 
-### Windows 自定义运行命令示例
-
-如果你希望显式写成 PowerShell 风格调用，可以这样覆盖运行模板：
-
-```json
-{
-  "cmakerunner.tasks.runCommandTemplate": "& ${quotedExecutablePath}"
-}
-```
+在 Windows 上，`${executableCommand}` 会展开为 `& "path"`（PowerShell 调用运算符），运行模板无需额外加引号。
 
 ## 推荐的 CMake Presets 写法
 

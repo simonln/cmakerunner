@@ -100,6 +100,36 @@ describe('utils', () => {
       const result = utils.replaceTemplateVariables('${x}', { x: undefined });
       assert.strictEqual(result, '');
     });
+
+    it('should not quote spaced values by default', () => {
+      const result = utils.replaceTemplateVariables('${a}', { a: 'my path' });
+      assert.strictEqual(result, 'my path');
+    });
+
+    it('should quote spaced bare values when quoteSpacedValues is enabled', () => {
+      const result = utils.replaceTemplateVariables('${a}', { a: 'my path' }, { quoteSpacedValues: true });
+      assert.strictEqual(result, '"my path"');
+    });
+
+    it('should leave unspaced values unquoted when quoteSpacedValues is enabled', () => {
+      const result = utils.replaceTemplateVariables('${a}', { a: 'myapp' }, { quoteSpacedValues: true });
+      assert.strictEqual(result, 'myapp');
+    });
+
+    it('should not re-quote prebuilt command fragments when quoteSpacedValues is enabled', () => {
+      const variables = {
+        buildDir: 'C:/My Projects/build',
+        configurationArgument: ' --config Debug',
+        executableCommand: '& "C:/My Projects/app.exe"',
+        quotedExecutablePath: '"C:/My Projects/app.exe"',
+      };
+      const result = utils.replaceTemplateVariables(
+        '${buildDir} ${configurationArgument} ${executableCommand} ${quotedExecutablePath}',
+        variables,
+        { quoteSpacedValues: true },
+      );
+      assert.strictEqual(result, '"C:/My Projects/build"  --config Debug & "C:/My Projects/app.exe" "C:/My Projects/app.exe"');
+    });
   });
 
   describe('getDefaultExecutablePath', () => {
@@ -151,6 +181,14 @@ describe('utils', () => {
       assert.strictEqual(utils.extractProgramPath('& "C:\\Program Files\\app.exe" arg'), 'C:\\Program Files\\app.exe');
     });
 
+    it('should extract single-quoted path', () => {
+      assert.strictEqual(utils.extractProgramPath("'my app' arg"), 'my app');
+    });
+
+    it('should ignore PowerShell call operator before single-quoted path', () => {
+      assert.strictEqual(utils.extractProgramPath("& 'C:\\Program Files\\app.exe' arg"), 'C:\\Program Files\\app.exe');
+    });
+
     it('should extract path before first space', () => {
       assert.strictEqual(utils.extractProgramPath('myapp arg1 arg2'), 'myapp');
     });
@@ -171,6 +209,20 @@ describe('utils', () => {
 
     it('should not quote path without space', () => {
       assert.strictEqual(utils.quoteForShell('myapp'), 'myapp');
+    });
+  });
+
+  describe('quoteForPowerShell', () => {
+    it('should always wrap path in single quotes', () => {
+      assert.strictEqual(utils.quoteForPowerShell('my app'), "'my app'");
+    });
+
+    it('should wrap path without space in single quotes', () => {
+      assert.strictEqual(utils.quoteForPowerShell('myapp'), "'myapp'");
+    });
+
+    it('should double embedded single quotes', () => {
+      assert.strictEqual(utils.quoteForPowerShell("my's app"), "'my''s app'");
     });
   });
 

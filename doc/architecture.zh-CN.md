@@ -90,7 +90,7 @@
 | --- | --- | --- | --- |
 | `cmakerunner.cmakePath` | `string` | `""` | CMake 可执行文件路径 |
 | `cmakerunner.tasks.presetConfigureCommandTemplate` | `string` | `cmake --preset ${preset}` | preset configure 命令模板 |
-| `cmakerunner.tasks.buildCommandTemplate` | `string` | `cmake --build ${buildDir}${configurationArgument} --target ${target}` | 目标构建命令模板 |
+| `cmakerunner.tasks.buildCommandTemplate` | `string` | `cmake --build ${buildDir} ${configurationArgument} --target ${target}` | 目标构建命令模板 |
 | `cmakerunner.tasks.runCommandTemplate` | `string` | `${executableCommand}` | 运行目标命令模板 |
 | `cmakerunner.tasks.clearTerminalBeforeRun` | `boolean` | `true` | 执行前是否清理终端 |
 
@@ -104,6 +104,7 @@
 - `${configurationArgument}` 会在存在 configuration 时展开为 ` --config <name>`
 - `${buildPresetArgument}` 会在存在 build preset 时展开为 ` --preset <name>`
 - `${executableCommand}` 在 Windows 下默认会生成为 `& <quoted path>`，便于直接在 PowerShell 中运行
+- 命令模板中替换后的值若包含空格会自动加双引号，避免路径或名称带空格导致命令拼接错误；预拼片段（如 `${configurationArgument}`、`${executableCommand}`）不会重复加引号
 
 ## 6. 主要模块
 

@@ -131,9 +131,29 @@ it('should call appendLine for info level', () => {
       vscode.workspace.getConfiguration = originalGetConfig;
     });
 
+    it('should quote preset name containing spaces in configure command', () => {
+      const mockConfig = createMockConfig({
+        'tasks.presetConfigureCommandTemplate': 'cmake --preset ${preset}',
+      });
+
+      const originalGetConfig = vscode.workspace.getConfiguration;
+      (vscode.workspace as any).getConfiguration = () => mockConfig;
+
+      const manager = new ConfigurationManager();
+      const result = manager.getPresetConfigureCommand({
+        buildDir: 'C:/My Projects/build',
+        preset: 'My Preset',
+        sourceDir: 'C:/My Projects/src',
+      });
+
+      assert.strictEqual(result, 'cmake --preset "My Preset"');
+
+      vscode.workspace.getConfiguration = originalGetConfig;
+    });
+
     it('should get build command with all variables', () => {
       const mockConfig = createMockConfig({
-        'tasks.buildCommandTemplate': 'cmake --build ${buildDir}${configurationArgument} --target ${target}',
+        'tasks.buildCommandTemplate': 'cmake --build ${buildDir} ${configurationArgument} --target ${target}',
       });
 
       const originalGetConfig = vscode.workspace.getConfiguration;
@@ -154,7 +174,35 @@ it('should call appendLine for info level', () => {
         buildPresetArgument: ' --preset debug',
       });
 
-      assert.strictEqual(result, 'cmake --build /build/debug --config Debug --target myapp');
+      assert.strictEqual(result, 'cmake --build /build/debug  --config Debug --target myapp');
+
+      vscode.workspace.getConfiguration = originalGetConfig;
+    });
+
+    it('should auto-quote build dir and target containing spaces', () => {
+      const mockConfig = createMockConfig({
+        'tasks.buildCommandTemplate': 'cmake --build ${buildDir} ${configurationArgument} --target ${target}',
+      });
+
+      const originalGetConfig = vscode.workspace.getConfiguration;
+      (vscode.workspace as any).getConfiguration = () => mockConfig;
+
+      const manager = new ConfigurationManager();
+      const result = manager.getBuildCommand({
+        buildDir: 'C:/My Projects/build',
+        preset: 'debug',
+        target: 'My App',
+        sourceDir: 'C:/My Projects/src',
+        buildPreset: 'Debug Preset',
+        configuration: 'Debug',
+        configurationArgument: ' --config Debug',
+        executablePath: 'C:/My Projects/build/My App.exe',
+        quotedExecutablePath: '"C:/My Projects/build/My App.exe"',
+        executableCommand: '"C:/My Projects/build/My App.exe"',
+        buildPresetArgument: ' --preset Debug Preset',
+      });
+
+      assert.strictEqual(result, 'cmake --build "C:/My Projects/build"  --config Debug --target "My App"');
 
       vscode.workspace.getConfiguration = originalGetConfig;
     });

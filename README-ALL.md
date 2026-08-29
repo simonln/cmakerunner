@@ -149,7 +149,7 @@ The extension exposes these settings in VS Code `settings.json`:
 | --- | --- | --- |
 | `cmakerunner.cmakePath` | `""` | Optional path to `cmake` executable for preset discovery. Useful when CMake is bundled with Visual Studio but not on `PATH`. |
 | `cmakerunner.tasks.presetConfigureCommandTemplate` | `cmake --preset ${preset}` | Configure command template used for preset builds |
-| `cmakerunner.tasks.buildCommandTemplate` | `cmake --build ${buildDir}${configurationArgument} --target ${target}` | Build command template used for targets |
+| `cmakerunner.tasks.buildCommandTemplate` | `cmake --build ${buildDir} ${configurationArgument} --target ${target}` | Build command template used for targets |
 | `cmakerunner.tasks.runCommandTemplate` | `${executableCommand}` | Run command template used for targets |
 | `cmakerunner.tasks.clearTerminalBeforeRun` | `true` | Clears the shared terminal before build or run tasks |
 
@@ -186,27 +186,21 @@ If no supported debugger extension is installed, debugging reports an error.
 - `${quotedExecutablePath}`
 - `${executableCommand}`
 
+Substituted values that contain spaces are quoted automatically (for example `cmake --build ${buildDir}` becomes `cmake --build "C:/My Projects/build"` when the build directory contains spaces), so paths and names with spaces do not break the assembled command. Prebuilt fragments such as `${configurationArgument}` and `${executableCommand}` already carry their own formatting and are left untouched.
+
 ### Example configuration
 
 ```json
 {
   "cmakerunner.cmakePath": "C:/Program Files/Microsoft Visual Studio/2022/Professional/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe",
   "cmakerunner.tasks.presetConfigureCommandTemplate": "cmake --preset ${preset}",
-  "cmakerunner.tasks.buildCommandTemplate": "cmake --build ${buildDir}${configurationArgument} --target ${target}",
+  "cmakerunner.tasks.buildCommandTemplate": "cmake --build ${buildDir} ${configurationArgument} --target ${target}",
   "cmakerunner.tasks.runCommandTemplate": "${executableCommand}",
   "cmakerunner.tasks.clearTerminalBeforeRun": true
 }
 ```
 
-### Windows run command example
-
-If you want to make the PowerShell invocation explicit, you can override the run command template like this:
-
-```json
-{
-  "cmakerunner.tasks.runCommandTemplate": "& ${quotedExecutablePath}"
-}
-```
+On Windows, `${executableCommand}` expands to `& "path"` (PowerShell call operator), so no extra quoting is needed in the run template.
 
 ## Recommended CMake Presets Style
 

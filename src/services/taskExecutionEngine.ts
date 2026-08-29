@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { TaskExecutionResult } from '../models';
 import { ConfigurationManager } from './configurationManager';
 import { OutputLogger } from './outputLogger';
+import { quoteForPowerShell } from '../utils';
 import { findVsWhereMatchSync } from './windowsTooling';
 
 interface ShellExecutionSpec {
@@ -141,8 +142,7 @@ export class TaskExecutionEngine {
     }
 
     if (process.platform === 'win32') {
-      const escapedRunDirectory = runDirectory.replace(/'/g, "''");
-      return `Push-Location '${escapedRunDirectory}'; try { ${command}; $cmakerunnerExitCode = if ($LASTEXITCODE -is [int]) { $LASTEXITCODE } elseif ($?) { 0 } else { 1 } } finally { Pop-Location }; exit $cmakerunnerExitCode`;
+      return `Push-Location ${quoteForPowerShell(runDirectory)}; try { ${command}; $cmakerunnerExitCode = if ($LASTEXITCODE -is [int]) { $LASTEXITCODE } elseif ($?) { 0 } else { 1 } } finally { Pop-Location }; exit $cmakerunnerExitCode`;
     }
 
     const escapedRunDirectory = runDirectory.replace(/'/g, `'\\''`);
@@ -189,6 +189,5 @@ function getVcvarsallArchitecture(): string {
 }
 
 function wrapPosixBuildCommand(command: string): string {
-  const escapedCommand = command.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
-  return `trap "exit 130" INT; ${escapedCommand}`;
+  return `trap "exit 130" INT; ${command}`;
 }
