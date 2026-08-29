@@ -1,5 +1,11 @@
 # CMake Runner
 
+## V0.4.8 2026-08-29
+### Enhancements
+* Automatically quote substituted values that contain spaces in preset configure, build, and run command templates, so paths and names with spaces no longer break the assembled command
+* Quote the run directory and executable paths with PowerShell-safe single quotes on Windows, and remove fragile escaping from the POSIX build command wrapper
+* Fix the default build command template to keep a space between `${buildDir}` and `${configurationArgument}`
+
 ## V0.4.7 2026-08-11
 ### Enhancements
 * Only scan executables whose name starts with `test` (case-insensitive) for GoogleTest cases, skipping app executables and speeding up Test Explorer discovery
