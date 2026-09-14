@@ -21,7 +21,13 @@ const preferredOrder = [
 
 function discoverTestSuites() {
   const outTestDir = path.join(projectRoot, 'out', 'test');
+  if (!fs.existsSync(outTestDir)) {
+    throw new Error(`Compiled test directory not found: ${outTestDir}. Run "npm run compile" first.`);
+  }
   const discovered = fs.readdirSync(outTestDir).filter((file) => file.endsWith('.test.js'));
+  if (discovered.length === 0) {
+    throw new Error(`No compiled test suites found in ${outTestDir}. Run "npm run compile" first.`);
+  }
   const ordered = [
     ...preferredOrder.filter((file) => discovered.includes(file)),
     ...discovered.filter((file) => !preferredOrder.includes(file)).sort(),

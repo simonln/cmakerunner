@@ -11,6 +11,8 @@ out/test/**
 # 排除 Source Map 文件
 **/*.map        
 doc/**
+docs/**
+coverage/**
 
 .github/**
 
