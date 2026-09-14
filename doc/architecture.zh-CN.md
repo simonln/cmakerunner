@@ -11,7 +11,7 @@
 - **源码到目标映射**：基于 CMake File API 返回的 target `sources` 建立 `<源码文件 -> 目标>` 映射。
 - **侧边栏视图联动**：通过 TreeView 展示 Preset 与 Target，并与当前编辑器联动。
 - **原生任务与调试集成**：使用 VS Code Tasks API 执行 configure / build / run，并对接调试能力。
-- **GoogleTest 支持**：扫描当前 preset 构建目录中的可执行文件，通过 `--gtest_list_tests` 发现用例，并注册到 VS Code 测试资源管理器。
+- **GoogleTest 支持**：从已发现的可执行目标中筛选名称以 `test` 开头（大小写不敏感）的目标，通过 `--gtest_list_tests` 探测用例，并注册到 VS Code 测试资源管理器。
 - **可配置命令模板**：通过 `settings.json` 定制 configure、build、run 命令。
 
 ## 3. 架构分层设计
