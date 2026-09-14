@@ -8,7 +8,8 @@
 
 ## 插件功能
 
-- 当工作区包含 `CMakePresets.json` 时自动激活
+- 当工作区包含 `CMakePresets.json` 或 `CMakeUserPresets.json` 时自动激活
+- 在 VS Code 启动完成后也会完成激活，让测试资源管理器集成在首次手动刷新前就可用
 - 在 `Presets` 视图中列出可用的 CMake configure preset
 - 从 `CMakePresets.json` 和 `CMakeUserPresets.json` 解析 preset，支持 `include` 与 `inherits`
 - 在存在对应关系时，自动将 configure preset 与 CMake build preset 关联起来
@@ -72,7 +73,7 @@ code --install-extension cmakerunner-0.x.x.vsix
 
 ### 1. 打开项目
 
-打开包含 `CMakePresets.json` 的 CMake 项目目录，插件会自动激活。
+打开包含 `CMakePresets.json` 或 `CMakeUserPresets.json` 的 CMake 项目目录，插件会自动激活；VS Code 启动完成后也会注册测试资源管理器集成。
 
 ### 2. 选择 Preset
 

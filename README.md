@@ -215,7 +215,7 @@ It is still a good idea to enable `CMAKE_EXPORT_COMPILE_COMMANDS` in your preset
 
 ## Known Limitations
 
-- Target discovery and source mapping depend on the CMake File; if configure has not succeeded yet, the target list stays empty
+- Target discovery and source mapping depend on the CMake File API; if configure has not succeeded yet, the target list stays empty
 - The extension focuses on preset configure, target discovery, build, run, and debug; it is not a full CMake project manager
 - Debug sessions are created dynamically at runtime and depend on an installed supported C/C++ debugger extension
 - The extension operates on the first VS Code workspace folder
