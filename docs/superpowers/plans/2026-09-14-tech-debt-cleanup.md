@@ -178,8 +178,9 @@ git commit -m "refactor(testing): remove terminal-based gtest execution paths su
 **Files:**
 - Delete: `src/ui/gtestTreeDataProvider.ts`（296 行）
 - Modify: `test/ui.test.ts`（删除导入与 402-578 的 describe 块）
+- Modify: `src/models.ts`（删除 `GTestRunStatus`、`GTestRunResult`、`GTestRunSummary`）
 
-**背景:** 自定义 GTests 视图已在 V0.4.0 移除，`gtestTreeDataProvider.ts` 未被任何生产代码实例化，只在 `test/ui.test.ts` 中被引用。
+**背景:** 自定义 GTests 视图已在 V0.4.0 移除，`gtestTreeDataProvider.ts` 未被任何生产代码实例化，只在 `test/ui.test.ts` 中被引用。Task 2 之后 `GTestRunSummary` 已无生产引用；删除本文件后 `GTestRunStatus`（models.ts:27）与 `GTestRunResult`（models.ts:29）也变为死类型，一并删除。
 
 - [ ] **Step 1: 删除文件** `src/ui/gtestTreeDataProvider.ts`（`git rm src/ui/gtestTreeDataProvider.ts`）
 
@@ -188,20 +189,22 @@ git commit -m "refactor(testing): remove terminal-based gtest execution paths su
 - 删除第 2 行：`import { GTestCaseTreeItem, GTestTargetTreeItem, GTestTreeDataProvider } from '../src/ui/gtestTreeDataProvider';`
 - 删除 `describe('GTestTreeDataProvider', ...)` 整个块（402-578，共 10 个用例），保留外层 `describe('ui', ...)` 的其余内容与结尾 `});`
 
-- [ ] **Step 3: 验证**
+- [ ] **Step 3: 删除 `src/models.ts` 中已无引用的 `GTestRunStatus`(27)、`GTestRunResult`(29-33)、`GTestRunSummary`(35-38)**
+
+- [ ] **Step 4: 验证**
 
 ```bash
 npm run compile
 npm test
-grep -rn "gtestTreeDataProvider\|GTestTreeDataProvider" src/ test/ || true
+grep -rn "gtestTreeDataProvider\|GTestTreeDataProvider\|GTestRunStatus\|GTestRunSummary" src/ test/ || true
 ```
 
-预期：`npm test` 全绿；除本任务删除内容外无匹配。
+预期：`npm test` 全绿；grep 在 `src/`、`test/` 中无匹配。
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add src/ui/gtestTreeDataProvider.ts test/ui.test.ts
+git add src/ui/gtestTreeDataProvider.ts test/ui.test.ts src/models.ts
 git commit -m "chore(ui): remove legacy gtest tree provider"
 ```
 
