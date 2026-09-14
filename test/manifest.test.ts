@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 
-const packageJson = require('../package.json') as {
+const packageJson = require('../../package.json') as {
   activationEvents?: string[];
 };
 

@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import * as childProcess from 'child_process';
+import childProcess = require('child_process');
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -41,20 +41,23 @@ describe('windows tooling', () => {
   it('findVsWhereMatchSync returns the first non-empty output line', () => {
     const restorePlatform = setPlatform('win32');
     const originalProgramFilesX86 = process.env['ProgramFiles(x86)'];
-    const originalExecFileSync = childProcess.execFileSync;
+    const execFileSyncDescriptor = Object.getOwnPropertyDescriptor(childProcess, 'execFileSync')!;
     const fakeRoot = path.join(__dirname, 'fixtures', 'programfiles-sync');
     const vswherePath = path.join(fakeRoot, 'Microsoft Visual Studio', 'Installer', 'vswhere.exe');
     fs.mkdirSync(path.dirname(vswherePath), { recursive: true });
     fs.writeFileSync(vswherePath, 'binary');
     process.env['ProgramFiles(x86)'] = fakeRoot;
 
-    (childProcess as any).execFileSync = () => '\n  C:\\VS\\VC\\Auxiliary\\Build\\vcvarsall.bat  \n\n';
+    Object.defineProperty(childProcess, 'execFileSync', {
+      value: () => '\n  C:\\VS\\VC\\Auxiliary\\Build\\vcvarsall.bat  \n\n',
+      configurable: true,
+    });
 
     try {
       const { findVsWhereMatchSync } = loadWindowsToolingModule();
       assert.strictEqual(findVsWhereMatchSync(['-latest']), 'C:\\VS\\VC\\Auxiliary\\Build\\vcvarsall.bat');
     } finally {
-      (childProcess as any).execFileSync = originalExecFileSync;
+      Object.defineProperty(childProcess, 'execFileSync', execFileSyncDescriptor);
       if (originalProgramFilesX86 === undefined) {
         delete process.env['ProgramFiles(x86)'];
       } else {
@@ -67,23 +70,26 @@ describe('windows tooling', () => {
   it('findVsWhereMatch returns undefined when execFile fails', async () => {
     const restorePlatform = setPlatform('win32');
     const originalProgramFilesX86 = process.env['ProgramFiles(x86)'];
-    const originalExecFile = childProcess.execFile;
+    const execFileDescriptor = Object.getOwnPropertyDescriptor(childProcess, 'execFile')!;
     const fakeRoot = path.join(__dirname, 'fixtures', 'programfiles-async');
     const vswherePath = path.join(fakeRoot, 'Microsoft Visual Studio', 'Installer', 'vswhere.exe');
     fs.mkdirSync(path.dirname(vswherePath), { recursive: true });
     fs.writeFileSync(vswherePath, 'binary');
     process.env['ProgramFiles(x86)'] = fakeRoot;
 
-    (childProcess as any).execFile = (_file: string, _args: string[], _options: unknown, callback: Function) => {
-      callback(new Error('spawn failed'));
-    };
+    Object.defineProperty(childProcess, 'execFile', {
+      value: (_file: string, _args: string[], _options: unknown, callback: Function) => {
+        callback(new Error('spawn failed'));
+      },
+      configurable: true,
+    });
 
     try {
       const { findVsWhereMatch } = loadWindowsToolingModule();
       const result = await findVsWhereMatch(['-latest']);
       assert.strictEqual(result, undefined);
     } finally {
-      (childProcess as any).execFile = originalExecFile;
+      Object.defineProperty(childProcess, 'execFile', execFileDescriptor);
       if (originalProgramFilesX86 === undefined) {
         delete process.env['ProgramFiles(x86)'];
       } else {
