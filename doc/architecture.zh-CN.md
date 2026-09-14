@@ -27,8 +27,8 @@
   - 使用 VS Code Testing API 注册 GoogleTest 可执行文件、suite 和 case
   - 响应测试资源管理器中的 run / debug 请求
 - **FilterMatcher**（`src/ui/filterMatcher.ts`）
-  - 目标树与 gtest 过滤共享的大小写不敏感子串/正则匹配器
-  - `getRegexFilterError` 用于校验用户输入的正则是否合法
+  - `createFilterMatcher` 为 Targets 树提供大小写不敏感的子串/正则匹配
+  - `getRegexFilterError` 供 `src/extension.ts` 的过滤 QuickPick 校验用户输入的正则是否合法
 - **Command Register**
   - 注册 `cmakerunner.buildTarget`、`cmakerunner.debugTarget` 等命令
 - **Editor Sync Listener**
@@ -147,7 +147,7 @@ src/
 - `GTestParser`：解析 `--gtest_list_tests` 输出为 suite/case 列表
 - `GTestSourceLocator`：把已发现的 GoogleTest 用例映射到源码文件与行列
 - `DebugSessionManager`：跟踪并清理测试调试会话及其终端
-- `FilterMatcher`：目标树与 gtest 过滤共享的子串/正则匹配
+- `FilterMatcher`：Targets 树与过滤 QuickPick 共享的大小写不敏感子串/正则匹配（`createFilterMatcher` / `getRegexFilterError`）
 - `PresetTreeDataProvider` / `TargetTreeDataProvider`：提供树视图数据
 
 ## 7. 当前限制与后续方向
