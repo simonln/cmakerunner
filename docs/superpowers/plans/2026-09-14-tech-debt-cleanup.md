@@ -16,10 +16,10 @@
 
 **Files:** 无代码改动（仅提交本计划文件）
 
-- [ ] 基于 `main` 创建分支：`git checkout -b cleanup/v0.4.9-tech-debt`
-- [ ] 提交本计划文件：`git add docs/superpowers/plans/2026-09-14-tech-debt-cleanup.md && git commit -m "docs: add v0.4.9 tech debt cleanup plan"`
-- [ ] 记录基线：`npm run compile && npm test`（应全绿），并记录通过的套件与用例数
-- [ ] 若基线失败，停止并报告，不继续执行
+- [x] 基于 `main` 创建分支：`git checkout -b cleanup/v0.4.9-tech-debt`
+- [x] 提交本计划文件：`git add docs/superpowers/plans/2026-09-14-tech-debt-cleanup.md && git commit -m "docs: add v0.4.9 tech debt cleanup plan"`
+- [x] 记录基线：`npm run compile && npm test`（应全绿），并记录通过的套件与用例数
+- [x] 若基线失败，停止并报告，不继续执行
 
 ---
 
@@ -34,7 +34,7 @@
 
 **背景:** `parseGTestListOutput` 目前定义在 `workflowManager.ts`，但生产环境只有 `testController.ts` 使用它。Task 2 会删除 WorkflowManager 的其余 gtest 路径，所以先把它搬到独立模块。
 
-- [ ] **Step 1: 新建 `src/services/gtestParser.ts`**，内容为从 `workflowManager.ts:494-523` 原样搬迁的函数：
+- [x] **Step 1: 新建 `src/services/gtestParser.ts`**，内容为从 `workflowManager.ts:494-523` 原样搬迁的函数：
 
 ```ts
 import { GTestCaseInfo } from '../models';
@@ -71,7 +71,7 @@ export function parseGTestListOutput(output: string): GTestCaseInfo[] {
 }
 ```
 
-- [ ] **Step 2: 新建 `test/gtestParser.test.ts`**，搬迁 `workflow.test.ts:244-258` 的用例并补充空输入用例：
+- [x] **Step 2: 新建 `test/gtestParser.test.ts`**，搬迁 `workflow.test.ts:244-258` 的用例并补充空输入用例：
 
 ```ts
 import * as assert from 'assert';
@@ -100,13 +100,13 @@ describe('gtest parser', () => {
 });
 ```
 
-- [ ] **Step 3: 更新 `src/services/testController.ts:9`**：`import { parseGTestListOutput } from './workflowManager';` → `import { parseGTestListOutput } from './gtestParser';`
+- [x] **Step 3: 更新 `src/services/testController.ts:9`**：`import { parseGTestListOutput } from './workflowManager';` → `import { parseGTestListOutput } from './gtestParser';`
 
-- [ ] **Step 4: 更新 `src/services/workflowManager.ts`**：删除 `494-523` 的本地 `parseGTestListOutput`，在文件头部加入 `import { parseGTestListOutput } from './gtestParser';`（供其仍存在的 `listGTestCases` 使用）
+- [x] **Step 4: 更新 `src/services/workflowManager.ts`**：删除 `494-523` 的本地 `parseGTestListOutput`，在文件头部加入 `import { parseGTestListOutput } from './gtestParser';`（供其仍存在的 `listGTestCases` 使用）
 
-- [ ] **Step 5: 更新 `test/workflow.test.ts`**：删除 `244-258` 的 parse 用例；第 8 行改为 `import { WorkflowManager } from '../src/services/workflowManager';`（不再导入 parse 函数）
+- [x] **Step 5: 更新 `test/workflow.test.ts`**：删除 `244-258` 的 parse 用例；第 8 行改为 `import { WorkflowManager } from '../src/services/workflowManager';`（不再导入 parse 函数）
 
-- [ ] **Step 6: 验证**
+- [x] **Step 6: 验证**
 
 ```bash
 npm run compile
@@ -116,7 +116,7 @@ npm test
 
 预期：新解析用例 2 passing；`npm test` 全绿。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/services/gtestParser.ts test/gtestParser.test.ts src/services/testController.ts src/services/workflowManager.ts test/workflow.test.ts
@@ -133,28 +133,28 @@ git commit -m "refactor(testing): extract gtest list parser into its own module"
 
 **背景:** V0.4.0 已把 GoogleTest 迁移到 Test Explorer（`src/services/testController.ts`），WorkflowManager 中的终端执行路径只在测试中被调用，属于死代码。
 
-- [ ] **Step 1: 从 `src/services/workflowManager.ts` 删除以下成员**
+- [x] **Step 1: 从 `src/services/workflowManager.ts` 删除以下成员**
 
 接口：`GTestRunFailure`（11-14）。
 public 方法：`runGTestCase`(78-119)、`runGTestCases`(121-139)、`runAllGTestCases`(141-162)、`debugGTestCase`(164-175)、`listGTestCases`(317-329)。
 private 方法：`prepareGTestDebugging`(183-212)、`runGTestCasesSequentially`(241-281)、`createGTestRunResult`(283-289)、`getUniqueGTestCases`(291-305)、`reportGTestRunFailures`(307-315)、`pickGTestCase`(331-347)。
 函数：`execFileText`(480-492)。
 
-- [ ] **Step 2: 清理导入**
+- [x] **Step 2: 清理导入**
 
 - 删除 `import { execFile } from 'child_process';`
 - 删除 gtestParser 导入（Task 1 加入的 `parseGTestListOutput`，此时已无使用者）
 - `import { GTestCaseInfo, GTestRunResult, GTestRunSummary, PresetInfo, TargetInfo } from '../models';` → `import { PresetInfo, TargetInfo } from '../models';`
 - **保留** `quoteForShell` / `quoteForPowerShell`（`createVariables` 仍在用）与 `path`、`vscode`、其他服务导入
 
-- [ ] **Step 3: 从 `test/workflow.test.ts` 删除 gtest 用例**
+- [x] **Step 3: 从 `test/workflow.test.ts` 删除 gtest 用例**
 
 删除以下 10 个 `it` 块（原行号，按当前文件内容定位）：
 `runGTestCase lists cases and runs the selected filter`(260)、`runGTestCase shows a warning...`(286)、`runGTestCase stops when the user cancels...`(317)、`runGTestCases runs selected cases separately`(343)、`runGTestCases continues remaining cases after failures`(369)、`runGTestCases does not run when no cases are selected`(418)、`runAllGTestCases runs discovered cases separately`(443)、`runAllGTestCases continues after a discovered case fails`(469)、`debugGTestCase starts the selected test case directly`(505)、`listGTestCases shows an error when gtest discovery fails`(548)。
 同时删除已无用的 `import type { ChildProcess } from 'child_process';` 与 `const childProcess = require('child_process') ...`（仅这些用例使用）。
 **保留** `debugTarget`(575)、`debugTarget does not update launch configuration`(600)、`buildPreset continues when file api query preparation fails`(625) 等其余用例。
 
-- [ ] **Step 4: 验证**
+- [x] **Step 4: 验证**
 
 ```bash
 npm run compile
@@ -164,7 +164,7 @@ grep -rn "runGTest\|debugGTestCase\|listGTestCases" src/ || true
 
 预期：`npm test` 全绿；grep 在 `src/`（.ts 文件）中无匹配。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/services/workflowManager.ts test/workflow.test.ts
@@ -182,16 +182,16 @@ git commit -m "refactor(testing): remove terminal-based gtest execution paths su
 
 **背景:** 自定义 GTests 视图已在 V0.4.0 移除，`gtestTreeDataProvider.ts` 未被任何生产代码实例化，只在 `test/ui.test.ts` 中被引用。Task 2 之后 `GTestRunSummary` 已无生产引用；删除本文件后 `GTestRunStatus`（models.ts:27）与 `GTestRunResult`（models.ts:29）也变为死类型，一并删除。
 
-- [ ] **Step 1: 删除文件** `src/ui/gtestTreeDataProvider.ts`（`git rm src/ui/gtestTreeDataProvider.ts`）
+- [x] **Step 1: 删除文件** `src/ui/gtestTreeDataProvider.ts`（`git rm src/ui/gtestTreeDataProvider.ts`）
 
-- [ ] **Step 2: 更新 `test/ui.test.ts`**
+- [x] **Step 2: 更新 `test/ui.test.ts`**
 
 - 删除第 2 行：`import { GTestCaseTreeItem, GTestTargetTreeItem, GTestTreeDataProvider } from '../src/ui/gtestTreeDataProvider';`
 - 删除 `describe('GTestTreeDataProvider', ...)` 整个块（402-578，共 10 个用例），保留外层 `describe('ui', ...)` 的其余内容与结尾 `});`
 
-- [ ] **Step 3: 删除 `src/models.ts` 中已无引用的 `GTestRunStatus`(27)、`GTestRunResult`(29-33)、`GTestRunSummary`(35-38)**
+- [x] **Step 3: 删除 `src/models.ts` 中已无引用的 `GTestRunStatus`(27)、`GTestRunResult`(29-33)、`GTestRunSummary`(35-38)**
 
-- [ ] **Step 4: 验证**
+- [x] **Step 4: 验证**
 
 ```bash
 npm run compile
@@ -201,7 +201,7 @@ grep -rn "gtestTreeDataProvider\|GTestTreeDataProvider\|GTestRunStatus\|GTestRun
 
 预期：`npm test` 全绿；grep 在 `src/`、`test/` 中无匹配。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/ui/gtestTreeDataProvider.ts test/ui.test.ts src/models.ts
@@ -215,9 +215,9 @@ git commit -m "chore(ui): remove legacy gtest tree provider"
 **Files:**
 - Modify: `src/services/configurationManager.ts:137-147`
 
-- [ ] **Step 1: 删除文件末尾的 `quoteArguments` 与 `toEnvironmentArray` 两个函数**
+- [x] **Step 1: 删除文件末尾的 `quoteArguments` 与 `toEnvironmentArray` 两个函数**
 
-- [ ] **Step 2: 验证**
+- [x] **Step 2: 验证**
 
 ```bash
 npm run compile
@@ -227,7 +227,7 @@ grep -rn "quoteArguments\|toEnvironmentArray" src/ test/ || true
 
 预期：`npm test` 全绿；无匹配。
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/services/configurationManager.ts
@@ -244,7 +244,7 @@ git commit -m "chore: drop unused configuration manager helpers"
 
 **背景:** 这些 `.js`/`.js.map` 是旧构建流程遗留、被 git 跟踪且已过期；实际运行入口全部来自 `out/`。手写脚本（`test/run-unit.js`、`test/run-coverage.js`、`test/vscode-mock.js`、`test/vscode-shim.js`、`test/shim-register.js`）必须保留。
 
-- [ ] **Step 1: `git rm` 以下文件**
+- [x] **Step 1: `git rm` 以下文件**
 
 ```
 src/models.js src/models.js.map src/utils.js src/utils.js.map
@@ -262,7 +262,7 @@ test/ui.test.js test/ui.test.js.map
 test/utils.test.js test/utils.test.js.map
 ```
 
-- [ ] **Step 2: `.gitignore` 追加**
+- [x] **Step 2: `.gitignore` 追加**
 
 ```
 src/**/*.js
@@ -273,9 +273,9 @@ test/helpers.js
 test/helpers.js.map
 ```
 
-- [ ] **Step 3: 删除未跟踪的空目录** `test/mocks/`（若为空）：`rmdir test/mocks 2>/dev/null || true`
+- [x] **Step 3: 删除未跟踪的空目录** `test/mocks/`（若为空）：`rmdir test/mocks 2>/dev/null || true`
 
-- [ ] **Step 4: 验证**
+- [x] **Step 4: 验证**
 
 ```bash
 npm run compile
@@ -285,7 +285,7 @@ git status --porcelain
 
 预期：`npm test` 全绿；`git status` 中仅剩本次预期的删除与 `.gitignore` 修改。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A .gitignore src test
@@ -303,7 +303,7 @@ git commit -m "chore: remove stale compiled JavaScript committed alongside TypeS
 
 **背景:** 当前 `run-unit.js` 只硬编码 9 个套件，漏跑 `taskExecutionEngine`、`windowsTooling`、`manifest`；`run-coverage.js` 只覆盖 2 个套件且父进程补丁无效。改为自动发现，防止以后再漏。
 
-- [ ] **Step 1: 新建 `test/test-files.js`**
+- [x] **Step 1: 新建 `test/test-files.js`**
 
 ```js
 const fs = require('fs');
@@ -344,7 +344,7 @@ function discoverTestSuites() {
 module.exports = { discoverTestSuites };
 ```
 
-- [ ] **Step 2: 重写 `test/run-unit.js`**
+- [x] **Step 2: 重写 `test/run-unit.js`**
 
 ```js
 const path = require('path');
@@ -369,7 +369,7 @@ child.on('exit', (code) => {
 });
 ```
 
-- [ ] **Step 3: 重写 `test/run-coverage.js`**
+- [x] **Step 3: 重写 `test/run-coverage.js`**
 
 ```js
 const path = require('path');
@@ -404,7 +404,7 @@ child.on('exit', (code) => {
 });
 ```
 
-- [ ] **Step 4: 验证**
+- [x] **Step 4: 验证**
 
 ```bash
 npm test
@@ -413,7 +413,7 @@ npm run test:coverage
 
 预期：`npm test` 运行 13 个套件（含 `gtestParser`、`taskExecutionEngine`、`windowsTooling`、`manifest`）全绿；覆盖率文本报告能显示 `src/services/*` 等文件的覆盖率。若 c8 与 vscode-mock 组合失败，允许回退为仅在文档说明覆盖率范围，但必须先向控制者报告。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add test/test-files.js test/run-unit.js test/run-coverage.js
@@ -428,21 +428,21 @@ git commit -m "test: run all suites in npm test and cover the full suite in cove
 - Modify: `doc/architecture.zh-CN.md`
 - Modify: `TESTING.md`
 
-- [ ] **Step 1: 更新 `doc/architecture.zh-CN.md`**
+- [x] **Step 1: 更新 `doc/architecture.zh-CN.md`**
 
 - §3.1/§3.2：补充 `GTestSourceLocator`（扫描 TEST 宏定位用例源码位置）、`DebugSessionManager`（跟踪并清理调试会话终端）、`FilterMatcher`（共享大小写不敏感/正则过滤）职责
 - §4.4：更新 TestController 描述（按 `test*` 命名探测、源码位置异步 enrichment、稳定 ID）
 - §6 目录树：移除 `gtestTreeDataProvider.ts`，加入 `debugSessionManager.ts`、`gtestSourceLocator.ts`、`filterMatcher.ts`、`gtestParser.ts`
 - §7：更新测试相关描述（`npm test` 运行全部套件；`npm run test:coverage` 输出全量覆盖率）
 
-- [ ] **Step 2: 更新 `TESTING.md`**
+- [x] **Step 2: 更新 `TESTING.md`**
 
 - 说明 `npm test` 会编译并运行 `out/test` 下所有 `*.test.js` 套件
 - 新增 `npm run test:coverage` 说明与覆盖范围
 - 删除过期的 “142 passing”，改为不写死数字或写当前实测数字
 - 说明新增测试文件自动被发现（`test/test-files.js` 的 preferredOrder + 自动追加）
 
-- [ ] **Step 3: 验证**
+- [x] **Step 3: 验证**
 
 ```bash
 npm run compile
@@ -451,7 +451,7 @@ npm test
 
 预期：全绿（文档改动不影响测试，仅确认无意外）。
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add doc/architecture.zh-CN.md TESTING.md
@@ -466,9 +466,9 @@ git commit -m "docs: sync architecture and testing docs with current code"
 - Modify: `package.json:5`（version）
 - Modify: `CHANGELOG.md`（顶部新增 V0.4.9）
 
-- [ ] **Step 1: `package.json` version `0.4.8` → `0.4.9`**
+- [x] **Step 1: `package.json` version `0.4.8` → `0.4.9`**
 
-- [ ] **Step 2: `CHANGELOG.md` 顶部（`# CMake Runner` 之后、`## V0.4.8` 之前）插入**
+- [x] **Step 2: `CHANGELOG.md` 顶部（`# CMake Runner` 之后、`## V0.4.8` 之前）插入**
 
 ```markdown
 ## V0.4.9 2026-09-14
@@ -478,9 +478,9 @@ git commit -m "docs: sync architecture and testing docs with current code"
 * Remove stale compiled JavaScript files from the repository and synchronize the architecture and testing documentation
 ```
 
-- [ ] **Step 3: 验证**：`npm test` 全绿。
+- [x] **Step 3: 验证**：`npm test` 全绿。
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add package.json CHANGELOG.md
@@ -491,7 +491,7 @@ git commit -m "docs(release): V0.4.9 maintenance notes"
 
 ## Task 9：最终验证
 
-- [ ] `npm run compile && npm test && npm run test:coverage`
-- [ ] `npm run package:vsix`（确认可打包；产物在 `dist/`）
-- [ ] `git status` 干净；`git log --oneline -12` 逐提交复核
-- [ ] 汇总：清理文件数、测试套件数、用例总数、覆盖率摘要
+- [x] `npm run compile && npm test && npm run test:coverage`
+- [x] `npm run package:vsix`（确认可打包；产物在 `dist/`）
+- [x] `git status` 干净；`git log --oneline -12` 逐提交复核
+- [x] 汇总：清理文件数、测试套件数、用例总数、覆盖率摘要
