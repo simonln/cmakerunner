@@ -11,7 +11,7 @@
 - **源码到目标映射**：基于 CMake File API 返回的 target `sources` 建立 `<源码文件 -> 目标>` 映射。
 - **侧边栏视图联动**：通过 TreeView 展示 Preset 与 Target，并与当前编辑器联动。
 - **原生任务与调试集成**：使用 VS Code Tasks API 执行 configure / build / run，并对接调试能力。
-- **GoogleTest 支持**：从已发现的可执行目标中筛选名称以 `test` 开头（大小写不敏感）的目标，通过 `--gtest_list_tests` 探测用例，并注册到 VS Code 测试资源管理器。
+- **GoogleTest 支持**：从已发现的可执行目标中筛选可执行文件名以 `test` 开头（大小写不敏感）的目标，通过 `--gtest_list_tests` 探测用例，并注册到 VS Code 测试资源管理器。
 - **可配置命令模板**：通过 `settings.json` 定制 configure、build、run 命令。
 
 ## 3. 架构分层设计
@@ -41,7 +41,7 @@
 - **PresetProvider**：解析 `CMakePresets.json`，处理 `inherits`、`displayName`、`binaryDir`，并为 configure preset 关联合适的 build preset / configuration
 - **MappingEngine**：读取 CMake File API codemodel，提取受支持目标、推断构建产物路径，并建立源码到目标映射
 - **WorkflowManager**：串联 configure、build、run、debug 生命周期
-- **GTestTestController**：从当前目标列表筛选名称以 `test` 开头的可执行目标，发现 GoogleTest 用例并处理 Test Explorer run/debug profile
+- **GTestTestController**：从当前目标列表筛选可执行文件名以 `test` 开头的目标，发现 GoogleTest 用例并处理 Test Explorer run/debug profile
 - **GTestSourceLocator**（`src/services/gtestSourceLocator.ts`）：扫描目标源码中的 `TEST/TEST_F/TEST_P/TYPED_TEST(_P)` 宏，把已发现的 GoogleTest 用例映射到文件/行列
 - **DebugSessionManager**（`src/services/debugSessionManager.ts`）：跟踪通过 `startDebugging` 启动的调试会话及其打开的终端，在会话结束后清理
 
@@ -140,7 +140,7 @@ src/
 
 - `extension.ts`：扩展入口、命令注册、视图与事件绑定
 - `PresetProvider`：加载 preset
-- `MappingEngine`：从 File API 读取可执行目标并建立源码映射
+- `MappingEngine`：从 File API 读取受支持目标并建立源码映射
 - `TaskExecutionEngine`：执行任务
 - `WorkflowManager`：组织高层工作流
 - `GTestTestController`：提供 VS Code Test Explorer 中的 GoogleTest 发现、运行与调试集成
@@ -155,4 +155,4 @@ src/
 - 源码映射依赖 CMake File API 的 codemodel reply；如果项目尚未成功 configure，则不会出现目标列表
 - 目前只处理第一个工作区目录，multi-root 支持有限
 - 可执行文件路径推断仍有继续增强空间
-- 测试：`npm test` 会运行全部 13 个测试套件（149 个用例），`npm run test:coverage` 可输出全量覆盖率报告
+- 测试：`npm test` 会运行全部测试套件（2026-09-14 实测：13 个套件、149 个用例），`npm run test:coverage` 可输出全量覆盖率报告

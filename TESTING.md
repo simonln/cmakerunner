@@ -27,7 +27,7 @@ npm run test:coverage
 npm run test:watch
 ```
 
-修改测试前请先单独执行一次 `npm run compile`，监听模式只负责重跑已编译输出。
+启动时会先编译一次，之后只重跑已编译输出。
 
 ## 直接运行测试入口（当前环境已验证）
 
