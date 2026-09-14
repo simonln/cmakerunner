@@ -6,3 +6,9 @@ dist/
 *.tsbuildinfo
 doc/*.json
 .kilo/**
+src/**/*.js
+src/**/*.js.map
+test/*.test.js
+test/*.test.js.map
+test/helpers.js
+test/helpers.js.map
