@@ -19,7 +19,7 @@
 - 当活动编辑器切换到已映射源码时，在树中定位对应源码节点
 - 支持按目标名、可执行文件名、源码文件名过滤目标
 - 可从 `Targets` 视图或当前已映射源码文件直接执行 build、run、debug
-- 扫描当前 preset 构建目录下的可执行文件，并把发现的 GoogleTest 用例注册到 VS Code 内置测试资源管理器
+- 从已发现的可执行目标中筛选名称以 `test` 开头（大小写不敏感）的目标，并把发现的 GoogleTest 用例注册到 VS Code 内置测试资源管理器
 - 支持测试资源管理器中的 GoogleTest run/debug 操作
 - 支持通过 `settings.json` 自定义 configure、build、run 命令模板
 
@@ -106,7 +106,7 @@ code --install-extension cmakerunner-0.x.x.vsix
 ### 6. 运行或调试 GoogleTest 用例
 
 GoogleTest 用例会注册到 VS Code 内置的 **测试资源管理器**。
-选择 preset 并刷新目标后，插件会扫描当前 preset 的 `binaryDir` 下的可执行文件。每个候选可执行文件都会用 `--gtest_list_tests` 探测；能返回 GoogleTest 用例的可执行文件会被加入测试资源管理器。
+选择 preset 并刷新目标后，插件会从已发现的 `EXECUTABLE` 目标中筛选文件名以 `test` 开头（大小写不敏感）的候选可执行文件。每个候选可执行文件都会用 `--gtest_list_tests` 探测；能返回 GoogleTest 用例的可执行文件会被加入测试资源管理器。
 
 你可以在测试资源管理器中对单个用例、suite 或可执行文件分组使用内置 `Run` 和 `Debug`。Run 会对每个选中的用例使用 `--gtest_filter=<suite.case>`；Debug 会带着对应 GoogleTest filter 直接启动已安装的 C/C++ 调试器。
 
@@ -134,7 +134,7 @@ GoogleTest 用例会注册到 VS Code 内置的 **测试资源管理器**。
 - `cmakerunner.buildTargetFromCurrentFile`：构建当前活动源文件映射到的目标
 - `cmakerunner.runTarget`：构建并运行解析到的目标
 - `cmakerunner.debugTarget`：构建并调试解析到的目标
-- `cmakerunner.refreshGTests`：重新扫描当前 preset 构建目录并刷新测试资源管理器中的 GoogleTest 条目
+- `cmakerunner.refreshGTests`：基于当前已发现目标重新发现 GoogleTest 用例并刷新测试资源管理器中的条目
 - `cmakerunner.filterTargets`：过滤可见目标和源码节点
 - `cmakerunner.clearTargetFilter`：清除当前目标过滤条件
 

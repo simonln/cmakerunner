@@ -17,7 +17,7 @@ It is designed for projects that already use `CMakePresets.json` and want a more
 - Reveals the matching source node when the active editor switches to a mapped file
 - Supports target filtering by target name, executable name, or source file name
 - Builds, runs, and debugs targets from the `Targets` view or from the active mapped source file
-- Registers GoogleTest cases in VS Code Test Explorer by scanning executable files under the active preset's build directory
+- Registers GoogleTest cases in VS Code Test Explorer from discovered `EXECUTABLE` targets whose file name starts with `test` (case-insensitive), probed with `--gtest_list_tests`
 - Supports Test Explorer run/debug actions for discovered GoogleTest cases
 - Adds an editor title build button that starts from the current file and lets you pick from auto-filtered targets
 - Lets you customize configure, build, and run command templates through `settings.json`
@@ -112,7 +112,7 @@ Use `Clear Filter` to remove the current filter.
 ### 7. Run or debug GoogleTest cases
 
 GoogleTest cases are registered in VS Code's built-in **Test Explorer**.
-After a preset is selected and targets are refreshed, the extension scans the selected preset's `binaryDir` for executable files. Each executable candidate is probed with `--gtest_list_tests`; executables that report GoogleTest cases are added to Test Explorer.
+After a preset is selected and targets are refreshed, the extension picks candidate executables from the discovered `EXECUTABLE` targets whose file name starts with `test` (case-insensitive). Each executable candidate is probed with `--gtest_list_tests`; executables that report GoogleTest cases are added to Test Explorer.
 
 Use Test Explorer's built-in `Run` and `Debug` actions on a test case, suite, or executable group. Run uses `--gtest_filter=<suite.case>` for each selected case. Debug starts the installed C/C++ debugger directly with the matching GoogleTest filter.
 
@@ -129,7 +129,7 @@ The extension currently contributes these commands:
 - `cmakerunner.buildTargetFromCurrentFile`: build the target mapped to the active source file
 - `cmakerunner.runTarget`: build and run the resolved target
 - `cmakerunner.debugTarget`: build and debug the resolved target
-- `cmakerunner.refreshGTests`: rescan the active preset build directory and refresh Test Explorer GoogleTest items
+- `cmakerunner.refreshGTests`: re-discover GoogleTest cases from the current targets and refresh Test Explorer items
 - `cmakerunner.filterTargets`: filter visible targets and source nodes
 - `cmakerunner.clearTargetFilter`: clear the current target filter
 
