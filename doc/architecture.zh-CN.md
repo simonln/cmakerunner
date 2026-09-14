@@ -26,6 +26,9 @@
 - **TestController**
   - 使用 VS Code Testing API 注册 GoogleTest 可执行文件、suite 和 case
   - 响应测试资源管理器中的 run / debug 请求
+- **FilterMatcher**（`src/ui/filterMatcher.ts`）
+  - 目标树与 gtest 过滤共享的大小写不敏感子串/正则匹配器
+  - `getRegexFilterError` 用于校验用户输入的正则是否合法
 - **Command Register**
   - 注册 `cmakerunner.buildTarget`、`cmakerunner.debugTarget` 等命令
 - **Editor Sync Listener**
@@ -38,7 +41,9 @@
 - **PresetProvider**：解析 `CMakePresets.json`，处理 `inherits`、`displayName`、`binaryDir`，并为 configure preset 关联合适的 build preset / configuration
 - **MappingEngine**：读取 CMake File API codemodel，提取受支持目标、推断构建产物路径，并建立源码到目标映射
 - **WorkflowManager**：串联 configure、build、run、debug 生命周期
-- **GTestTestController**：扫描 preset `binaryDir`，发现 GoogleTest 用例并处理 Test Explorer run/debug profile
+- **GTestTestController**：从当前目标列表筛选名称以 `test` 开头的可执行目标，发现 GoogleTest 用例并处理 Test Explorer run/debug profile
+- **GTestSourceLocator**（`src/services/gtestSourceLocator.ts`）：扫描目标源码中的 `TEST/TEST_F/TEST_P/TYPED_TEST(_P)` 宏，把已发现的 GoogleTest 用例映射到文件/行列
+- **DebugSessionManager**（`src/services/debugSessionManager.ts`）：跟踪通过 `startDebugging` 启动的调试会话及其打开的终端，在会话结束后清理
 
 ### 3.3 执行与集成层
 
@@ -75,12 +80,14 @@
 
 ### 4.4 GoogleTest 发现与运行链路
 
-1. 当前 preset 变化或目标刷新后，`GTestTestController` 获取 preset 的 `binaryDir`
-2. 控制器递归扫描构建目录中的可执行文件候选项，跳过 `.cmake`、`CMakeFiles`、`_deps` 等目录
-3. 每个候选可执行文件通过 `--gtest_list_tests` 探测是否包含 GoogleTest 用例
+1. 当前 preset 变化或目标刷新后，`GTestTestController` 基于当前目标列表挑选候选可执行文件
+2. 只探测名称以 `test` 开头（大小写不敏感）的可执行目标，并确认文件真实存在
+3. 每个候选可执行文件通过 `--gtest_list_tests` 探测是否包含 GoogleTest 用例，由 `GTestParser` 解析输出
 4. 发现到的用例按“可执行文件 -> suite -> case”注册到 VS Code 测试资源管理器
-5. Test Explorer 的 Run 请求会对每个选中 case 使用 `--gtest_filter=<suite.case>` 运行
-6. Test Explorer 的 Debug 请求会聚合同一可执行文件下的选中 case，并直接启动已安装调试器
+5. 注册完成后异步通过 `GTestSourceLocator` 扫描目标源码位置，为用例补充文件与行列信息，用于 Test Explorer 定位
+6. 运行/调试会先检查测试树是否已注册，避免重复执行冗余的全量发现扫描
+7. Run 对每个选中用例使用 `--gtest_filter=<suite.case>` 运行
+8. Debug 按可执行文件聚合选中用例、合并过滤表达式后直接启动已安装调试器；调试会话及其打开的终端由 `DebugSessionManager` 跟踪，并在会话结束后清理
 
 ## 5. 配置与扩展性设计
 
@@ -115,6 +122,9 @@ src/
 ├─ utils.ts
 ├─ services/
 │  ├─ configurationManager.ts
+│  ├─ debugSessionManager.ts
+│  ├─ gtestParser.ts
+│  ├─ gtestSourceLocator.ts
 │  ├─ mappingEngine.ts
 │  ├─ outputLogger.ts
 │  ├─ presetProvider.ts
@@ -123,7 +133,7 @@ src/
 │  ├─ windowsTooling.ts
 │  └─ workflowManager.ts
 └─ ui/
-   ├─ gtestTreeDataProvider.ts
+   ├─ filterMatcher.ts
    ├─ presetTreeDataProvider.ts
    └─ targetTreeDataProvider.ts
 ```
@@ -134,6 +144,10 @@ src/
 - `TaskExecutionEngine`：执行任务
 - `WorkflowManager`：组织高层工作流
 - `GTestTestController`：提供 VS Code Test Explorer 中的 GoogleTest 发现、运行与调试集成
+- `GTestParser`：解析 `--gtest_list_tests` 输出为 suite/case 列表
+- `GTestSourceLocator`：把已发现的 GoogleTest 用例映射到源码文件与行列
+- `DebugSessionManager`：跟踪并清理测试调试会话及其终端
+- `FilterMatcher`：目标树与 gtest 过滤共享的子串/正则匹配
 - `PresetTreeDataProvider` / `TargetTreeDataProvider`：提供树视图数据
 
 ## 7. 当前限制与后续方向
@@ -141,4 +155,4 @@ src/
 - 源码映射依赖 CMake File API 的 codemodel reply；如果项目尚未成功 configure，则不会出现目标列表
 - 目前只处理第一个工作区目录，multi-root 支持有限
 - 可执行文件路径推断仍有继续增强空间
-- 后续可补充更多测试与自动化验证
+- 测试：`npm test` 会运行全部 13 个测试套件（149 个用例），`npm run test:coverage` 可输出全量覆盖率报告
