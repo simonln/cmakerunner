@@ -21,12 +21,12 @@ npm run package:vsix    # Build VSIX to dist/
 
 ## Key Details
 
-- Activates when workspace contains `CMakePresets.json`
+- Activates when workspace contains `CMakePresets.json` or `CMakeUserPresets.json`, and completes activation after VS Code startup (`onStartupFinished`)
 - Target discovery via CMake File API (reads `<binaryDir>/.cmake/api/v1/reply/`)
 - Configure always writes `codemodel-v2` query file
 - Requires successful configure before targets appear
 - Uses VS Code Tasks API and Debug API for build/run/debug
-- GoogleTest cases are registered in VS Code Test Explorer by scanning executables under the active preset build directory
+- GoogleTest cases are registered in VS Code Test Explorer from discovered `EXECUTABLE` targets whose name starts with `test`, probed with `--gtest_list_tests`
 
 ## Extension Commands
 

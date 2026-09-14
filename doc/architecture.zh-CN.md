@@ -6,7 +6,7 @@
 
 ## 2. 核心功能特性
 
-- **智能按需激活**：仅在包含 `CMakePresets.json` 的工作区激活。
+- **智能按需激活**：在包含 `CMakePresets.json` 或 `CMakeUserPresets.json` 的工作区激活；VS Code 启动完成后也会完成激活（`onStartupFinished`），让测试资源管理器集成提前可用。
 - **预设解析与过滤**：读取 configure presets，并过滤 `hidden: true` 的条目。
 - **源码到目标映射**：基于 CMake File API 返回的 target `sources` 建立 `<源码文件 -> 目标>` 映射。
 - **侧边栏视图联动**：通过 TreeView 展示 Preset 与 Target，并与当前编辑器联动。
@@ -146,7 +146,7 @@ src/
 - `GTestTestController`：提供 VS Code Test Explorer 中的 GoogleTest 发现、运行与调试集成
 - `GTestParser`：解析 `--gtest_list_tests` 输出为 suite/case 列表
 - `GTestSourceLocator`：把已发现的 GoogleTest 用例映射到源码文件与行列
-- `DebugSessionManager`：跟踪并清理测试调试会话及其终端
+- `DebugSessionManager`：跟踪并清理目标与测试的调试会话及其终端
 - `FilterMatcher`：Targets 树与过滤 QuickPick 共享的大小写不敏感子串/正则匹配（`createFilterMatcher` / `getRegexFilterError`）
 - `PresetTreeDataProvider` / `TargetTreeDataProvider`：提供树视图数据
 
