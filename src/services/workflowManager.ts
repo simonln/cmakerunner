@@ -232,4 +232,3 @@ function getMonotonicNow(): number {
     ? performance.now()
     : Date.now();
 }
-
