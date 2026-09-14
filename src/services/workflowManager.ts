@@ -5,6 +5,7 @@ import { GTestCaseInfo, GTestRunResult, GTestRunSummary, PresetInfo, TargetInfo 
 import { quoteForPowerShell, quoteForShell } from '../utils';
 import { ConfigurationManager } from './configurationManager';
 import { DebugSessionManager } from './debugSessionManager';
+import { parseGTestListOutput } from './gtestParser';
 import { OutputLogger } from './outputLogger';
 import { TaskExecutionEngine } from './taskExecutionEngine';
 
@@ -489,35 +490,4 @@ function execFileText(file: string, args: string[], cwd: string): Promise<string
       resolve(stdout);
     });
   });
-}
-
-export function parseGTestListOutput(output: string): GTestCaseInfo[] {
-  const testCases: GTestCaseInfo[] = [];
-  let currentSuite = '';
-
-  for (const line of output.split(/\r?\n/)) {
-    const withoutComment = line.replace(/\s+#.*$/, '').trimEnd();
-    if (!withoutComment.trim()) {
-      continue;
-    }
-
-    if (!/^\s/.test(withoutComment) && withoutComment.endsWith('.')) {
-      currentSuite = withoutComment.slice(0, -1).trim();
-      continue;
-    }
-
-    const testName = withoutComment.trim();
-    if (!currentSuite || !testName) {
-      continue;
-    }
-
-    const filter = `${currentSuite}.${testName}`;
-    testCases.push({
-      suite: currentSuite,
-      name: testName,
-      filter,
-    });
-  }
-
-  return testCases;
 }

@@ -6,7 +6,7 @@ import { GTestCaseInfo, PresetInfo, TargetInfo } from '../models';
 import { normalizePath } from '../utils';
 import { GTestSourceLocation, findGTestSourceLocations } from './gtestSourceLocator';
 import { OutputLogger } from './outputLogger';
-import { parseGTestListOutput } from './workflowManager';
+import { parseGTestListOutput } from './gtestParser';
 import { ConfigurationManager } from './configurationManager';
 import { DebugSessionManager } from './debugSessionManager';
 

@@ -5,7 +5,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { PresetInfo, TargetInfo } from '../src/models';
-import { parseGTestListOutput, WorkflowManager } from '../src/services/workflowManager';
+import { WorkflowManager } from '../src/services/workflowManager';
 
 const childProcess = require('child_process') as typeof import('child_process');
 
@@ -239,22 +239,6 @@ describe('workflow manager', () => {
     await manager.runTarget(preset, target, false);
     assert.strictEqual(runCount, 1);
     assert.strictEqual(runDirectory, preset.binaryDir);
-  });
-
-  it('parseGTestListOutput parses suites, tests, and comments', () => {
-    const parsed = parseGTestListOutput([
-      'MathTest.',
-      '  Adds',
-      '  Divides # GetParam() = 1',
-      'TypedSuite/0.  # TypeParam = int',
-      '  Works',
-    ].join('\n'));
-
-    assert.deepStrictEqual(parsed, [
-      { suite: 'MathTest', name: 'Adds', filter: 'MathTest.Adds' },
-      { suite: 'MathTest', name: 'Divides', filter: 'MathTest.Divides' },
-      { suite: 'TypedSuite/0', name: 'Works', filter: 'TypedSuite/0.Works' },
-    ]);
   });
 
   it('runGTestCase lists cases and runs the selected filter', async () => {
