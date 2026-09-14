@@ -1,25 +1,18 @@
 const path = require('path');
+const { spawn } = require('child_process');
+const { discoverTestSuites } = require('./test-files');
+
 const projectRoot = path.join(__dirname, '..');
 const mockPath = path.join(__dirname, 'vscode-mock.js');
+const { testFiles, appended } = discoverTestSuites();
 
-const { spawn } = require('child_process');
-
-const testFiles = [
-  'out/test/utils.test.js',
-  'out/test/models.test.js',
-  'out/test/services.test.js',
-  'out/test/gtestSourceLocator.test.js',
-  'out/test/gtestParser.test.js',
-  'out/test/testController.test.js',
-  'out/test/ui.test.js',
-  'out/test/integration.test.js',
-  'out/test/workflow.test.js',
-  'out/test/extension.test.js',
-];
+if (appended.length > 0) {
+  console.warn(`[run-unit] Running test suites not listed in preferredOrder: ${appended.join(', ')}`);
+}
 
 const child = spawn(process.execPath, ['-r', mockPath, 'node_modules/mocha/bin/mocha', '--timeout', '10000', ...testFiles], {
   stdio: 'inherit',
-  cwd: projectRoot
+  cwd: projectRoot,
 });
 
 child.on('exit', (code) => {
