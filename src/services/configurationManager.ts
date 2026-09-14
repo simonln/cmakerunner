@@ -133,15 +133,3 @@ function getPlatformConfiguration(configuration: vscode.DebugConfiguration): vsc
   const value = configuration[key];
   return typeof value === 'object' && value !== null ? value as vscode.DebugConfiguration : undefined;
 }
-
-function quoteArguments(args: readonly string[]): string {
-  return args.map((arg) => `"${arg.replace(/"/g, '\\"')}"`).join(' ');
-}
-
-function toEnvironmentArray(env: Record<string, string> | undefined): Array<{ name: string; value: string }> | undefined {
-  if (!env) {
-    return undefined;
-  }
-
-  return Object.entries(env).map(([name, value]) => ({ name, value }));
-}
