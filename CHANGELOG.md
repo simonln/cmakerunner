@@ -1,5 +1,11 @@
 # CMake Runner
 
+## V0.4.9 2026-09-14
+### Maintenance
+* Remove dead code left over from the V0.4.0 GoogleTest migration, including the legacy GTest tree provider, unused terminal-based GTest execution paths, and unused helpers
+* Run all test suites in `npm test` and report coverage for the full suite
+* Remove stale compiled JavaScript files from the repository and synchronize the architecture and testing documentation
+
 ## V0.4.8 2026-08-29
 ### Enhancements
 * Automatically quote substituted values that contain spaces in preset configure, build, and run command templates, so paths and names with spaces no longer break the assembled command
