@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { PresetInfo, TargetInfo } from '../models';
-import { quoteForPowerShell, quoteForShell } from '../utils';
+import { formatDuration, quoteForPowerShell, quoteForShell } from '../utils';
 import { ConfigurationManager } from './configurationManager';
 import { DebugSessionManager } from './debugSessionManager';
 import { OutputLogger } from './outputLogger';
@@ -216,15 +216,6 @@ export class WorkflowManager {
       this.logger.warn(`Unable to prepare CMake File API query for ${preset.name}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-}
-
-function formatDuration(durationMs: number): string {
-  if (durationMs < 1000) {
-    return `${durationMs} ms`;
-  }
-
-  const seconds = durationMs / 1000;
-  return `${seconds.toFixed(seconds >= 10 ? 0 : 1)} s`;
 }
 
 function getMonotonicNow(): number {

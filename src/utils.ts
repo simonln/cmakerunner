@@ -95,6 +95,15 @@ export function relativeDisplayPath(filePath: string, sourceDir: string): string
   return relative && !relative.startsWith('..') ? relative : filePath;
 }
 
+export function formatDuration(durationMs: number): string {
+  if (durationMs < 1000) {
+    return `${durationMs} ms`;
+  }
+
+  const seconds = durationMs / 1000;
+  return `${seconds.toFixed(seconds >= 10 ? 0 : 1)} s`;
+}
+
 export function parseJsonBuffer<T>(content: Uint8Array): ParsedJsonBuffer<T> {
   const buffer = Buffer.from(content);
   let lastError: unknown;
