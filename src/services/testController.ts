@@ -264,6 +264,7 @@ export class GTestTestController implements vscode.Disposable {
 
     const seen = new Set<string>();
     const executables: TestExecutable[] = [];
+    const patterns = this.configurationManager.getGTestExecutablePatterns();
     for (const target of this.store.getTargets()) {
       if (target.type !== 'EXECUTABLE') {
         continue;
@@ -274,7 +275,7 @@ export class GTestTestController implements vscode.Disposable {
         continue;
       }
 
-      if (!isTestNamedExecutable(executablePath)) {
+      if (!matchesGTestExecutableName(executablePath, patterns)) {
         continue;
       }
 
@@ -447,8 +448,29 @@ function isExecutableCandidate(filePath: string): boolean {
   return path.extname(filePath).toLowerCase() !== '.so';
 }
 
-export function isTestNamedExecutable(filePath: string): boolean {
-  return path.basename(filePath, path.extname(filePath)).toLowerCase().startsWith('test');
+export function matchesGTestExecutableName(filePath: string, patterns: readonly string[]): boolean {
+  const executableName = path.basename(filePath, path.extname(filePath));
+  return patterns.some((pattern) => matchesGlob(executableName, pattern));
+}
+
+function matchesGlob(value: string, pattern: string): boolean {
+  const flags = /[A-Z]/.test(pattern) ? '' : 'i';
+  return new RegExp(`^${globToRegExpSource(pattern)}$`, flags).test(value);
+}
+
+function globToRegExpSource(pattern: string): string {
+  let source = '';
+  for (const character of pattern) {
+    if (character === '*') {
+      source += '.*';
+    } else if (character === '?') {
+      source += '.';
+    } else {
+      source += character.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+  }
+
+  return source;
 }
 
 function appendProcessOutput(run: vscode.TestRun, result: ProcessResult): void {
