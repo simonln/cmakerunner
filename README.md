@@ -145,7 +145,6 @@ The extension exposes these settings in VS Code `settings.json`:
 | `cmakerunner.tasks.presetConfigureCommandTemplate` | `cmake --preset ${preset}` | Configure command template used for preset builds |
 | `cmakerunner.tasks.buildCommandTemplate` | `cmake --build ${buildDir} ${configurationArgument} --target ${target}` | Build command template used for targets |
 | `cmakerunner.tasks.runCommandTemplate` | `${executableCommand}` | Run command template used for targets |
-| `cmakerunner.tasks.clearTerminalBeforeRun` | `true` | Clears the shared terminal before build or run tasks |
 | `cmakerunner.gtests.caseTimeoutMs` | `60000` | Per-test-case timeout in milliseconds for Test Explorer GoogleTest runs. Use `0` to disable the timeout. |
 | `cmakerunner.gtests.executablePatterns` | `["test*"]` | Glob patterns (`*`, `?`) matched against GoogleTest candidate executable names without extension. Patterns containing uppercase letters are case-sensitive; others are case-insensitive. When set, they replace the default `test*` rule. Candidates are still confirmed with `--gtest_list_tests`. |
 
@@ -191,8 +190,7 @@ Substituted values that contain spaces are quoted automatically (for example `cm
   "cmakerunner.cmakePath": "C:/Program Files/Microsoft Visual Studio/2022/Professional/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe",
   "cmakerunner.tasks.presetConfigureCommandTemplate": "cmake --preset ${preset}",
   "cmakerunner.tasks.buildCommandTemplate": "cmake --build ${buildDir} ${configurationArgument} --target ${target}",
-  "cmakerunner.tasks.runCommandTemplate": "${executableCommand}",
-  "cmakerunner.tasks.clearTerminalBeforeRun": true
+  "cmakerunner.tasks.runCommandTemplate": "${executableCommand}"
 }
 ```
 

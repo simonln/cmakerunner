@@ -299,22 +299,6 @@ it('should call appendLine for info level', () => {
       vscode.workspace.getConfiguration = originalGetConfig;
     });
 
-    it('should check clear terminal setting', () => {
-      const mockConfig = createMockConfig({
-        'tasks.clearTerminalBeforeRun': true,
-      });
-
-      const originalGetConfig = vscode.workspace.getConfiguration;
-      (vscode.workspace as any).getConfiguration = () => mockConfig;
-
-      const manager = new ConfigurationManager();
-      const result = manager.shouldClearTerminalBeforeRun();
-
-      assert.strictEqual(result, true);
-
-      vscode.workspace.getConfiguration = originalGetConfig;
-    });
-
     it('should create debug configuration from installed Microsoft C++ extension', () => {
       const mockConfig = createMockConfig({
         configurations: [],

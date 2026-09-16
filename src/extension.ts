@@ -31,7 +31,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const presetProvider = new PresetProvider(workspaceRoot, logger);
   const mappingEngine = new MappingEngine(logger);
   const sessionLoader = new SessionLoader(store, presetProvider, mappingEngine, logger);
-  const taskExecutionEngine = new TaskExecutionEngine(workspaceRoot, configurationManager, logger);
+  const taskExecutionEngine = new TaskExecutionEngine(workspaceRoot, logger);
   const debugSessionManager = new DebugSessionManager();
   const testController = new GTestTestController(
     store,

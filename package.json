@@ -206,11 +206,6 @@
                     "default": "${executableCommand}",
                     "description": "Run command template. Supports ${buildDir}, ${preset}, ${target}, ${sourceDir}, ${buildPreset}, ${configuration}, ${configurationArgument}, ${buildPresetArgument}, ${executablePath}, ${quotedExecutablePath}, and ${executableCommand}."
                 },
-                "cmakerunner.tasks.clearTerminalBeforeRun": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Clear the shared terminal before starting a build or run task."
-                },
                 "cmakerunner.gtests.caseTimeoutMs": {
                     "type": "number",
                     "default": 60000,

@@ -483,7 +483,6 @@ vscode.workspace.getConfiguration('cmakerunner')
 cmakerunner.tasks.presetConfigureCommandTemplate
 cmakerunner.tasks.buildCommandTemplate
 cmakerunner.tasks.runCommandTemplate
-cmakerunner.tasks.clearTerminalBeforeRun
 ```
 
 GoogleTest 运行配置：
@@ -562,6 +561,7 @@ src/services/taskExecutionEngine.ts
 
 - 创建 VS Code `Task`
 - 执行 build / configure / run
+- 执行前清空共享终端
 - 监听任务结束事件
 - 返回退出码
 - 注入 problem matcher

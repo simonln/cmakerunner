@@ -151,7 +151,6 @@ GoogleTest 用例会注册到 VS Code 内置的 **测试资源管理器**。
 | `cmakerunner.tasks.presetConfigureCommandTemplate` | `cmake --preset ${preset}` | preset configure 使用的命令模板 |
 | `cmakerunner.tasks.buildCommandTemplate` | `cmake --build ${buildDir} ${configurationArgument} --target ${target}` | 目标构建使用的命令模板 |
 | `cmakerunner.tasks.runCommandTemplate` | `${executableCommand}` | 目标运行使用的命令模板 |
-| `cmakerunner.tasks.clearTerminalBeforeRun` | `true` | build 或 run 前是否清理共享终端 |
 | `cmakerunner.gtests.caseTimeoutMs` | `60000` | 测试资源管理器中单个 GoogleTest 用例的超时（毫秒），`0` 表示禁用超时 |
 | `cmakerunner.gtests.executablePatterns` | `["test*"]` | 匹配 GoogleTest 候选可执行文件名（去扩展名）的 glob 模式（`*`、`?`）。含大写字母的模式区分大小写，其余不区分。设置后替换默认 `test*` 规则；候选仍会用 `--gtest_list_tests` 确认 |
 
@@ -196,8 +195,7 @@ GoogleTest 用例会注册到 VS Code 内置的 **测试资源管理器**。
 {
   "cmakerunner.tasks.presetConfigureCommandTemplate": "cmake --preset ${preset}",
   "cmakerunner.tasks.buildCommandTemplate": "cmake --build ${buildDir} ${configurationArgument} --target ${target}",
-  "cmakerunner.tasks.runCommandTemplate": "${executableCommand}",
-  "cmakerunner.tasks.clearTerminalBeforeRun": true
+  "cmakerunner.tasks.runCommandTemplate": "${executableCommand}"
 }
 ```
 

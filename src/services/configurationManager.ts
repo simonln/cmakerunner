@@ -19,10 +19,6 @@ export class ConfigurationManager {
     return replaceTemplateVariables(this.settings().get<string>('tasks.runCommandTemplate', ''), variables, { quoteSpacedValues: true });
   }
 
-  public shouldClearTerminalBeforeRun(): boolean {
-    return this.settings().get<boolean>('tasks.clearTerminalBeforeRun', true);
-  }
-
   public getGTestCaseTimeoutMs(): number {
     const value = this.settings().get<number>('gtests.caseTimeoutMs', 60000);
     if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {

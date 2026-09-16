@@ -2,7 +2,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { TaskExecutionResult } from '../models';
-import { ConfigurationManager } from './configurationManager';
 import { OutputLogger } from './outputLogger';
 import { quoteForPowerShell } from '../utils';
 import { findVsWhereMatchSync } from './windowsTooling';
@@ -19,7 +18,6 @@ export class TaskExecutionEngine {
 
   public constructor(
     private readonly workspaceRoot: string,
-    private readonly configurationManager: ConfigurationManager,
     private readonly logger: OutputLogger,
   ) {}
 
@@ -63,7 +61,7 @@ export class TaskExecutionEngine {
     task.presentationOptions = {
       reveal,
       focus: false,
-      clear: this.configurationManager.shouldClearTerminalBeforeRun(),
+      clear: true,
       panel: vscode.TaskPanelKind.Shared,
     };
 

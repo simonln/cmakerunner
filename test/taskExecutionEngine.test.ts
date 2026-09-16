@@ -19,16 +19,13 @@ describe('task execution engine', () => {
   };
 
   const createEngine = () => {
-    const configurationManager = {
-      shouldClearTerminalBeforeRun: () => true,
-    };
     const logger = {
       info: () => {},
       warn: () => {},
       error: () => {},
     };
     const { TaskExecutionEngine } = loadTaskExecutionEngineModule();
-    return new TaskExecutionEngine('/workspace', configurationManager as never, logger as never);
+    return new TaskExecutionEngine('/workspace', logger as never);
   };
 
   it('executeBuild creates a build task and resolves process exit codes', async () => {

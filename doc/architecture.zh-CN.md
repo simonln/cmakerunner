@@ -99,7 +99,6 @@
 | `cmakerunner.tasks.presetConfigureCommandTemplate` | `string` | `cmake --preset ${preset}` | preset configure 命令模板 |
 | `cmakerunner.tasks.buildCommandTemplate` | `string` | `cmake --build ${buildDir} ${configurationArgument} --target ${target}` | 目标构建命令模板 |
 | `cmakerunner.tasks.runCommandTemplate` | `string` | `${executableCommand}` | 运行目标命令模板 |
-| `cmakerunner.tasks.clearTerminalBeforeRun` | `boolean` | `true` | 执行前是否清理终端 |
 | `cmakerunner.gtests.executablePatterns` | `string[]` | `["test*"]` | GoogleTest 候选可执行文件名的 glob 模式；配置后替换默认规则 |
 
 ### 支持变量

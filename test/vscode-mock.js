@@ -51,8 +51,7 @@ const vscode = {
         const defaults = {
           'tasks.presetConfigureCommandTemplate': 'cmake --preset ${preset}',
           'tasks.buildCommandTemplate': 'cmake --build ${buildDir} ${configurationArgument} --target ${target}',
-          'tasks.runCommandTemplate': '${executableCommand}',
-          'tasks.clearTerminalBeforeRun': true
+          'tasks.runCommandTemplate': '${executableCommand}'
         };
         return defaults[key] ?? defaultValue;
       },
