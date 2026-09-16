@@ -1346,9 +1346,9 @@ compile_commands.json 假 fallback
     cmakerunner.gtests.caseTimeoutMs 可配置
 ```
 
-### 17.2 GoogleTest 发现策略（V0.5.1 已改进）
+### 17.2 GoogleTest 发现策略（V0.5.0 已改进）
 
-V0.5.1 起候选筛选由 `cmakerunner.gtests.executablePatterns` 控制：默认 `test*`（大小写不敏感），支持 `*` 与 `?` 通配，含大写字母的模式区分大小写；一旦配置自定义模式，会替换默认规则。因此以下名称可以通过设置模式覆盖：
+V0.5.0 起候选筛选由 `cmakerunner.gtests.executablePatterns` 控制：默认 `test*`（大小写不敏感），支持 `*` 与 `?` 通配，含大写字母的模式区分大小写；一旦配置自定义模式，会替换默认规则。因此以下名称可以通过设置模式覆盖：
 
 ```text
 unit_runner       → 例如 ["*_runner"]
@@ -1456,7 +1456,7 @@ TargetsView（TargetTreeDataProvider）
 VS Code TestController
 ```
 
-整体结构已经具备清晰的服务化基础。V0.5.0 已解决入口过重、假 fallback、状态分散与测试运行不可中断的问题，V0.5.1 已解决 GoogleTest 发现规则不可配置的问题；当前最值得关注的遗留问题是：
+整体结构已经具备清晰的服务化基础。V0.5.0 已解决入口过重、假 fallback、状态分散、测试运行不可中断以及 GoogleTest 发现规则不可配置的问题；当前最值得关注的遗留问题是：
 
 ```text
 Multi-root workspace 支持有限

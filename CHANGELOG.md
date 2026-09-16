@@ -1,19 +1,14 @@
 # CMake Runner
 
-## V0.5.1 2026-09-16
-### Enhancements
-* Add `cmakerunner.gtests.executablePatterns` to customize which executable names are probed for GoogleTest cases; the default is `test*` (case-insensitive) and configured patterns replace it, with `*`/`?` wildcards and case-sensitive matching for patterns containing uppercase letters
-
 ## V0.5.0 2026-09-16
 ### Enhancements
+* Add `cmakerunner.gtests.executablePatterns` to customize which executable names are probed for GoogleTest cases; the default is `test*` (case-insensitive) and configured patterns replace it, with `*`/`?` wildcards and case-sensitive matching for patterns containing uppercase letters
 * Add `cmakerunner.gtests.caseTimeoutMs` (default 60000 ms) to enforce a per-test-case timeout in Test Explorer, and support cancelling a test run by killing the running case's process tree; timed out cases are reported as failed and remaining cases continue
 * Cancel a GoogleTest debug run with `vscode.debug.stopDebugging()` and mark the remaining cases as skipped
+* Always clear the shared terminal before starting a build or run task
 
-### Refactoring
-* Introduce `SessionStore` as the single source of truth for presets, targets, and the active source file, with change events consumed by the views and Test Explorer controller
-* Add `SessionLoader` for lazy initialization and target refresh with stale-result guards, and slim `extension.ts` down to a composition root by extracting commands, the target picker, and build directory cleanup
-* Make `MappingEngine.build()` stateless: missing or failed CMake File API replies now return an empty mapping instead of logging a fake `compile_commands.json` fallback and keeping stale targets
-* Add `processRunner.ts` as the shared, cancellable process execution layer for test discovery and test runs
+### Breaking Changes
+* Remove `cmakerunner.tasks.clearTerminalBeforeRun`
 
 ## V0.4.9 2026-09-14
 ### Maintenance
