@@ -213,6 +213,7 @@ const vscode = {
 
   debug: {
     startDebugging: async () => false,
+    stopDebugging: async () => {},
     onDidStartDebugSession: () => ({ dispose: () => {} }),
     onDidTerminateDebugSession: () => ({ dispose: () => {} }),
   },

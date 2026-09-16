@@ -1,15 +1,15 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { execFile } from 'child_process';
 import * as vscode from 'vscode';
 import { SessionStore } from '../app/sessionStore';
 import { GTestCaseInfo, TargetInfo } from '../models';
-import { normalizePath } from '../utils';
+import { formatDuration, normalizePath } from '../utils';
 import { GTestSourceLocation, findGTestSourceLocations } from './gtestSourceLocator';
 import { OutputLogger } from './outputLogger';
 import { parseGTestListOutput } from './gtestParser';
 import { ConfigurationManager } from './configurationManager';
 import { DebugSessionManager } from './debugSessionManager';
+import { ProcessResult, runProcess } from './processRunner';
 
 interface TestExecutable {
   readonly path: string;
@@ -36,12 +36,7 @@ interface CaseNode {
 
 type Node = ExecutableNode | SuiteNode | CaseNode;
 
-interface ExecResult {
-  readonly exitCode: number | undefined;
-  readonly stdout: string;
-  readonly stderr: string;
-  readonly error?: Error;
-}
+const LIST_TESTS_TIMEOUT_MS = 15000;
 
 export class GTestTestController implements vscode.Disposable {
   private readonly controller: vscode.TestController;
@@ -165,9 +160,14 @@ export class GTestTestController implements vscode.Disposable {
   }
 
   private async listExecutableCases(executable: TestExecutable): Promise<GTestCaseInfo[]> {
-    const result = await execFileResult(executable.path, ['--gtest_list_tests'], executable.cwd, 15000);
+    const result = await runProcess(executable.path, ['--gtest_list_tests'], {
+      cwd: executable.cwd,
+      timeoutMs: LIST_TESTS_TIMEOUT_MS,
+    });
     if (result.exitCode !== 0) {
-      const message = result.stderr.trim() || result.stdout.trim() || result.error?.message || `Exited with code ${result.exitCode ?? 'unknown'}`;
+      const message = result.timedOut
+        ? `Timed out after ${formatDuration(LIST_TESTS_TIMEOUT_MS)}`
+        : result.stderr.trim() || result.stdout.trim() || result.error?.message || `Exited with code ${result.exitCode ?? 'unknown'}`;
       this.logger.warn(`Unable to list GoogleTest cases for ${executable.path}: ${message}`);
       return [];
     }
@@ -305,31 +305,46 @@ export class GTestTestController implements vscode.Disposable {
     }
     const run = this.controller.createTestRun(request);
     const cases = this.collectRequestedCases(request);
+    const timeoutMs = this.configurationManager.getGTestCaseTimeoutMs();
 
-    for (const entry of cases) {
-      if (token.isCancellationRequested) {
-        run.skipped(entry.item);
-        continue;
+    try {
+      for (const entry of cases) {
+        if (token.isCancellationRequested) {
+          run.skipped(entry.item);
+          continue;
+        }
+
+        run.enqueued(entry.item);
+        run.started(entry.item);
+        const startedAt = Date.now();
+        const result = await runProcess(entry.node.executable.path, [`--gtest_filter=${entry.node.testCase.filter}`], {
+          cwd: entry.node.executable.cwd,
+          timeoutMs,
+          token,
+        });
+        const duration = Date.now() - startedAt;
+        appendProcessOutput(run, result);
+
+        if (result.cancelled) {
+          run.skipped(entry.item);
+          continue;
+        }
+
+        if (result.timedOut) {
+          run.failed(entry.item, new vscode.TestMessage(`Timed out after ${formatDuration(timeoutMs)}.`), duration);
+          continue;
+        }
+
+        if (result.exitCode === 0) {
+          run.passed(entry.item, duration);
+        } else {
+          const message = result.stderr.trim() || result.stdout.trim() || result.error?.message || `Exited with code ${result.exitCode ?? 'unknown'}`;
+          run.failed(entry.item, new vscode.TestMessage(message), duration);
+        }
       }
-
-      run.enqueued(entry.item);
-      run.started(entry.item);
-      const startedAt = Date.now();
-      const result = await execFileResult(entry.node.executable.path, [`--gtest_filter=${entry.node.testCase.filter}`], entry.node.executable.cwd, 0);
-      const duration = Date.now() - startedAt;
-      appendProcessOutput(run, result);
-
-      if (token.isCancellationRequested) {
-        run.skipped(entry.item);
-      } else if (result.exitCode === 0) {
-        run.passed(entry.item, duration);
-      } else {
-        const message = result.stderr.trim() || result.stdout.trim() || result.error?.message || `Exited with code ${result.exitCode ?? 'unknown'}`;
-        run.failed(entry.item, new vscode.TestMessage(message), duration);
-      }
+    } finally {
+      run.end();
     }
-
-    run.end();
   }
 
   private async debug(request: vscode.TestRunRequest, token: vscode.CancellationToken): Promise<void> {
@@ -340,44 +355,50 @@ export class GTestTestController implements vscode.Disposable {
     const run = this.controller.createTestRun(request);
     const groupedCases = groupCasesByExecutable(this.collectRequestedCases(request));
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    const cancellationListener = token.onCancellationRequested(() => {
+      void vscode.debug.stopDebugging();
+    });
 
-    for (const group of groupedCases) {
-      if (token.isCancellationRequested) {
+    try {
+      for (const group of groupedCases) {
+        if (token.isCancellationRequested) {
+          for (const entry of group.cases) {
+            run.skipped(entry.item);
+          }
+          continue;
+        }
+
         for (const entry of group.cases) {
-          run.skipped(entry.item);
+          run.enqueued(entry.item);
+          run.started(entry.item);
         }
-        continue;
-      }
 
-      for (const entry of group.cases) {
-        run.enqueued(entry.item);
-        run.started(entry.item);
-      }
+        const filter = group.cases.map((entry) => entry.node.testCase.filter).join(':');
+        const launchConfiguration = this.configurationManager.createDebugConfiguration({
+          name: `Debug ${path.basename(group.executable.path)} ${filter}`,
+          program: group.executable.path,
+          cwd: group.executable.cwd,
+          args: [`--gtest_filter=${filter}`],
+          env: {
+            ASAN_OPTIONS: 'detect_leaks=0',
+            LSAN_OPTIONS: 'detect_leaks=0',
+          },
+        });
 
-      const filter = group.cases.map((entry) => entry.node.testCase.filter).join(':');
-      const launchConfiguration = this.configurationManager.createDebugConfiguration({
-        name: `Debug ${path.basename(group.executable.path)} ${filter}`,
-        program: group.executable.path,
-        cwd: group.executable.cwd,
-        args: [`--gtest_filter=${filter}`],
-        env: {
-          ASAN_OPTIONS: 'detect_leaks=0',
-          LSAN_OPTIONS: 'detect_leaks=0',
-        },
-      });
-
-      this.logger.info(`launchConfiguration=${JSON.stringify(launchConfiguration)}`)
-      const started = await this.debugSessionManager.startDebugging(workspaceFolder, launchConfiguration);
-      for (const entry of group.cases) {
-        if (started) {
-          run.passed(entry.item);
-        } else {
-          run.failed(entry.item, new vscode.TestMessage('Debugger launch was rejected.'));
+        this.logger.info(`launchConfiguration=${JSON.stringify(launchConfiguration)}`)
+        const started = await this.debugSessionManager.startDebugging(workspaceFolder, launchConfiguration);
+        for (const entry of group.cases) {
+          if (started) {
+            run.passed(entry.item);
+          } else {
+            run.failed(entry.item, new vscode.TestMessage('Debugger launch was rejected.'));
+          }
         }
       }
+    } finally {
+      cancellationListener.dispose();
+      run.end();
     }
-
-    run.end();
   }
 
   private collectRequestedCases(request: vscode.TestRunRequest): Array<{ item: vscode.TestItem; node: CaseNode }> {
@@ -430,22 +451,7 @@ export function isTestNamedExecutable(filePath: string): boolean {
   return path.basename(filePath, path.extname(filePath)).toLowerCase().startsWith('test');
 }
 
-function execFileResult(file: string, args: string[], cwd: string, timeout: number): Promise<ExecResult> {
-  return new Promise((resolve) => {
-    execFile(file, args, { cwd, timeout, maxBuffer: 8 * 1024 * 1024 }, (error, stdout, stderr) => {
-      const nodeError = error as NodeJS.ErrnoException | null;
-      const exitCode = typeof nodeError?.code === 'number' ? nodeError.code : error ? 1 : 0;
-      resolve({
-        exitCode,
-        stdout,
-        stderr,
-        error: error ?? undefined,
-      });
-    });
-  });
-}
-
-function appendProcessOutput(run: vscode.TestRun, result: ExecResult): void {
+function appendProcessOutput(run: vscode.TestRun, result: ProcessResult): void {
   const output = `${result.stdout}${result.stderr}`;
   if (output) {
     run.appendOutput(output.replace(/\n/g, '\r\n'));
