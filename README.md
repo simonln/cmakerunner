@@ -116,6 +116,8 @@ After a preset is selected and targets are refreshed, the extension picks candid
 
 Use Test Explorer's built-in `Run` and `Debug` actions on a test case, suite, or executable group. Run uses `--gtest_filter=<suite.case>` for each selected case. Debug starts the installed C/C++ debugger directly with the matching GoogleTest filter.
 
+Each test case is executed with a per-case timeout controlled by `cmakerunner.gtests.caseTimeoutMs` (default 60000 ms, `0` disables the timeout). A timed out case is marked as failed with a `Timed out after ...` message and the remaining cases keep running. Cancelling a test run kills the running case's process tree and marks it and the remaining cases as skipped.
+
 
 ## Commands
 
@@ -144,6 +146,7 @@ The extension exposes these settings in VS Code `settings.json`:
 | `cmakerunner.tasks.buildCommandTemplate` | `cmake --build ${buildDir} ${configurationArgument} --target ${target}` | Build command template used for targets |
 | `cmakerunner.tasks.runCommandTemplate` | `${executableCommand}` | Run command template used for targets |
 | `cmakerunner.tasks.clearTerminalBeforeRun` | `true` | Clears the shared terminal before build or run tasks |
+| `cmakerunner.gtests.caseTimeoutMs` | `60000` | Per-test-case timeout in milliseconds for Test Explorer GoogleTest runs. Use `0` to disable the timeout. |
 
 ### Debugger Selection
 

@@ -89,7 +89,18 @@ psgmrunner/
 │  ├─ models.ts
 │  ├─ utils.ts
 │  │
+│  ├─ app/
+│  │  ├─ sessionStore.ts
+│  │  ├─ sessionLoader.ts
+│  │  ├─ commandGuards.ts
+│  │  └─ commands/
+│  │     ├─ types.ts
+│  │     ├─ presetCommands.ts
+│  │     ├─ targetCommands.ts
+│  │     └─ viewCommands.ts
+│  │
 │  ├─ services/
+│  │  ├─ buildDirectoryCleaner.ts
 │  │  ├─ configurationManager.ts
 │  │  ├─ debugSessionManager.ts
 │  │  ├─ gtestParser.ts
@@ -97,6 +108,7 @@ psgmrunner/
 │  │  ├─ mappingEngine.ts
 │  │  ├─ outputLogger.ts
 │  │  ├─ presetProvider.ts
+│  │  ├─ processRunner.ts
 │  │  ├─ taskExecutionEngine.ts
 │  │  ├─ testController.ts
 │  │  ├─ windowsTooling.ts
@@ -105,7 +117,10 @@ psgmrunner/
 │  └─ ui/
 │     ├─ filterMatcher.ts
 │     ├─ presetTreeDataProvider.ts
-│     └─ targetTreeDataProvider.ts
+│     ├─ presetsView.ts
+│     ├─ targetPicker.ts
+│     ├─ targetTreeDataProvider.ts
+│     └─ targetsView.ts
 │
 ├─ test/
 │  ├─ utils.test.ts
@@ -114,6 +129,9 @@ psgmrunner/
 │  ├─ gtestSourceLocator.test.ts
 │  ├─ gtestParser.test.ts
 │  ├─ testController.test.ts
+│  ├─ processRunner.test.ts
+│  ├─ sessionStore.test.ts
+│  ├─ sessionLoader.test.ts
 │  ├─ ui.test.ts
 │  ├─ integration.test.ts
 │  ├─ workflow.test.ts
@@ -143,15 +161,14 @@ psgmrunner/
 src/extension.ts
 ```
 
-这是整个插件的 Composition Root 和应用层入口，主要负责：
+`extension.ts` 现在只做 Composition Root：创建服务、视图与命令上下文，然后注册命令和可见性触发器，本身不保存业务状态。核心职责：
 
 - 获取第一个 workspace folder
-- 创建核心服务实例
-- 保存当前 preset 和初始化状态
-- 创建两个 TreeView
-- 注册插件命令
-- 监听当前编辑器变化
-- 协调 Preset、Target、Workflow、GTest 之间的数据流
+- 创建核心服务实例（含 `SessionStore` / `SessionLoader`）
+- 创建 `PresetsView` / `TargetsView` / `TargetPicker`
+- 注册插件命令（委托给 `src/app/commands/`）
+- 监听当前编辑器变化并写入 `SessionStore`
+- 视图可见时触发 `SessionLoader.ensureInitialized()`
 
 初始化的主要对象如下：
 
@@ -159,42 +176,46 @@ src/extension.ts
 activate()
   ├─ OutputLogger
   ├─ ConfigurationManager
+  ├─ SessionStore
   ├─ PresetProvider
   ├─ MappingEngine
+  ├─ SessionLoader
   ├─ TaskExecutionEngine
   ├─ DebugSessionManager
   ├─ GTestTestController
   ├─ WorkflowManager
-  ├─ PresetTreeDataProvider
-  └─ TargetTreeDataProvider
+  ├─ PresetsView
+  ├─ TargetsView
+  └─ TargetPicker
 ```
 
-核心状态由 `extension.ts` 直接维护：
+核心状态由 `src/app/sessionStore.ts` 统一维护：
 
 ```ts
-let presets: PresetInfo[] = [];
-let currentPreset: PresetInfo | undefined;
-let initializationPromise: Promise<void> | undefined;
+presets
+currentPreset
+mapping（targets + sourceToTargets）
+activeSourcePath
 ```
+
+状态变化通过 `onDidChangePresets` / `onDidChangeTargets` / `onDidChangeActiveSource` 事件发布，视图与 `GTestTestController` 自行订阅，不再由入口手动 setter 同步。`workspaceState` 的 preset 记忆也由 `SessionStore` 托管。
 
 初始化流程如下：
 
 ```text
-ensureInitialized()
-  ├─ refresh()
-  │   ├─ PresetProvider.loadPresets()
-  │   ├─ 选择保存的 preset 或第一个 preset
-  │   ├─ 更新 workspaceState
-  │   └─ 更新 PresetTreeDataProvider
-  │
-  └─ updateTargets()
-      ├─ MappingEngine.rebuild(currentPreset)
-      ├─ 获取 targets
-      ├─ 更新 TargetTreeDataProvider
-      └─ 更新 GTestTestController
+SessionLoader.ensureInitialized()（Promise 去重）
+  └─ SessionLoader.refresh()
+      ├─ PresetProvider.loadPresets()
+      ├─ SessionStore.setPresets()（解析记忆 preset、持久化、清空旧 targets）
+      │   └─ onDidChangePresets / onDidChangeTargets
+      └─ SessionLoader.updateTargets()
+          ├─ MappingEngine.build(currentPreset)（无状态）
+          ├─ generation + preset 身份守卫（丢弃过期结果）
+          └─ SessionStore.setMapping()
+              └─ onDidChangeTargets
 ```
 
-`initializationPromise` 用于避免多个命令并发触发重复初始化。
+`SessionLoader.ensureInitialized()` 用于避免多个命令并发触发重复初始化。
 
 初始化是惰性的：只有当 Presets/Targets 视图可见（`onDidChangeVisibility`）、执行命令，或 Test Explorer 触发 `ensureInitialized` 回调时，才会真正加载 preset 和 target，避免拖慢 VS Code 启动。
 
@@ -424,15 +445,15 @@ Windows 下会自动补充 `.exe`。
 
 ### 6.4 当前实现注意点
 
-`rebuild()`（`src/services/mappingEngine.ts:62`）中会打印“falling back to compile_commands.json”的警告，但实际代码并没有读取 `compile_commands.json`。真实行为是：
+`MappingEngine` 现在是无状态的纯解析器：`build(preset)`（`src/services/mappingEngine.ts`）每次返回一个全新的 `MappingIndex`，从不保留上一次索引。真实行为是：
 
 ```text
-File API 解析出 target → 替换索引
-File API 结果为空      → 保留上一次索引（初始为空索引）
-File API 读取异常      → 保留上一次索引（初始为空索引）
+File API 解析出 target → 返回新索引
+File API 结果为空      → 返回空索引，日志提示先执行 Build
+File API 读取异常      → 返回空索引并记录警告
 ```
 
-后续应当实现真正的 fallback，或者删除误导性的日志。
+空结果由 `SessionStore.setMapping()` 应用后会立即清空 Targets 视图，因此切换 preset 或 configure 失败不会再显示上一个 preset 的陈旧 target。旧版本中“falling back to compile_commands.json”的日志与保留旧索引的行为已在 V0.5.0 移除。
 
 ## 7. 配置和命令模板：`ConfigurationManager`
 
@@ -463,6 +484,13 @@ cmakerunner.tasks.presetConfigureCommandTemplate
 cmakerunner.tasks.buildCommandTemplate
 cmakerunner.tasks.runCommandTemplate
 cmakerunner.tasks.clearTerminalBeforeRun
+```
+
+GoogleTest 运行配置：
+
+```text
+cmakerunner.gtests.caseTimeoutMs
+  单个测试用例的超时（毫秒），默认 60000，0 表示禁用超时
 ```
 
 Configure 变量：
@@ -794,7 +822,25 @@ VS Code Test Explorer 的 Run 请求会：
 7. 结束 TestRun
 ```
 
-实际执行者是 `GTestTestController.run()`（`src/services/testController.ts:306`），每个 case 都会重新启动一次可执行文件，进程没有设置超时。
+实际执行者是 `GTestTestController.run()`（`src/services/testController.ts`），每个 case 都会重新启动一次可执行文件。V0.5.0 起：
+
+```text
+- 单个 case 的超时由 cmakerunner.gtests.caseTimeoutMs 控制（默认 60000 ms，0 = 禁用）
+- 超时的 case 标记为 failed，消息为 “Timed out after ...”，并继续执行后续 case
+- 用户取消时杀死当前 case 的进程树并标记为 skipped；其余 case 也标记为 skipped
+- run.end() 通过 finally 保证一定会调用
+```
+
+进程执行统一走 `src/services/processRunner.ts` 的 `runProcess()`：
+
+```text
+- timeoutMs > 0 时，到点先发 SIGTERM，宽限 2s 后发 SIGKILL
+- POSIX 使用 detached 进程组 + process.kill(-pid)，Windows 使用 taskkill /T /F
+- token 取消会触发同样的杀进程树逻辑，并返回 cancelled = true
+- 返回 { exitCode, stdout, stderr, timedOut, cancelled, error? }
+```
+
+发现阶段的 `--gtest_list_tests` 同样使用 `runProcess()`，超时为 15s。
 
 ### 10.4 测试调试
 
@@ -804,7 +850,7 @@ VS Code Test Explorer 的 Run 请求会：
 --gtest_filter=SuiteA.Test1:SuiteA.Test2
 ```
 
-然后通过 `ConfigurationManager.createDebugConfiguration()` 动态构造调试配置并启动；调试配置会额外注入 `ASAN_OPTIONS=detect_leaks=0` 与 `LSAN_OPTIONS=detect_leaks=0`。调试器成功启动后，该组 case 会被直接标记为 passed，不等待调试会话结束。
+然后通过 `ConfigurationManager.createDebugConfiguration()` 动态构造调试配置并启动；调试配置会额外注入 `ASAN_OPTIONS=detect_leaks=0` 与 `LSAN_OPTIONS=detect_leaks=0`。调试器成功启动后，该组 case 会被直接标记为 passed，不等待调试会话结束。若用户在调试运行期间取消，`GTestTestController.debug()` 会调用 `vscode.debug.stopDebugging()`，并把剩余未启动的 case 标记为 skipped。
 
 ### 10.5 测试源码定位
 
@@ -941,7 +987,29 @@ src/ui/filterMatcher.ts
 
 统一入口是 `createFilterMatcher(filterText, isRegex, normalizeValue)`，`normalizeValue` 由调用方注入：Targets 树会把路径分隔符统一为 `/`。`getRegexFilterError()` 供过滤 QuickPick 校验用户输入的正则是否合法，非法正则不会写回过滤器。
 
-### 12.4 已移除的 `GTestTreeDataProvider`
+### 12.4 视图封装与 TargetPicker
+
+文件：
+
+```text
+src/ui/presetsView.ts
+src/ui/targetsView.ts
+src/ui/targetPicker.ts
+```
+
+`PresetsView` 与 `TargetsView` 各自创建 TreeView、持有 provider 并订阅 `SessionStore` 事件：
+
+```text
+SessionStore.onDidChangePresets → PresetsView 刷新 preset provider
+SessionStore.onDidChangeTargets → TargetsView 刷新 target provider
+SessionStore.onDidChangeActiveSource → TargetsView 更新当前源码并 reveal
+```
+
+Targets 视图的 filter 状态、`description`/`message`、`cmakerunner.targetsFilterActive` context key、target reveal 与 active source reveal 都封装在 `TargetsView` 内，不再由 `extension.ts` 维护。
+
+`TargetPicker` 封装 target QuickPick 与正则输入，数据来源改为 `SessionStore.getTargets()` / `SessionStore.findTargetsBySource()`。
+
+### 12.5 已移除的 `GTestTreeDataProvider`
 
 v0.4.0 起 GoogleTest 已迁移到 VS Code Test Explorer；v0.4.9 清理了遗留的 `src/ui/gtestTreeDataProvider.ts` 以及基于 terminal 的测试执行路径。当前仓库不再包含该文件，GoogleTest 的唯一展示入口是 Test Explorer。
 
@@ -952,23 +1020,27 @@ v0.4.0 起 GoogleTest 已迁移到 VS Code Test Explorer；v0.4.9 清理了遗�
 ```text
 VS Code 激活
     ↓
-activate()
+activate()（仅组装）
     ↓
-创建服务和视图
+创建服务、SessionStore、视图
     ↓
-视图可见 / 命令 / Test Explorer 触发 ensureInitialized()
+视图可见 / 命令 / Test Explorer 触发 SessionLoader.ensureInitialized()
     ↓
 PresetProvider.loadPresets()
     ↓
-选择当前 preset
+SessionStore.setPresets()（选择当前 preset、持久化、清空旧 targets）
     ↓
-MappingEngine.rebuild()
+SessionLoader.updateTargets()
+    ↓
+MappingEngine.build()（无状态）
     ↓
 读取 File API
     ↓
-TargetTreeDataProvider.setTargets()
+SessionStore.setMapping()
     ↓
-GTestTestController.setTargets()
+onDidChangeTargets
+    ├─ TargetsView 刷新
+    └─ GTestTestController.reset()
 ```
 
 ### 13.2 Configure / Target 发现
@@ -976,7 +1048,7 @@ GTestTestController.setTargets()
 ```text
 用户点击 Preset Build
     ↓
-extension.ts 命令处理器
+src/app/commands/presetCommands.ts
     ↓
 WorkflowManager.buildPreset()
     ↓
@@ -990,13 +1062,11 @@ cmake --preset ...
     ↓
 构建完成
     ↓
-MappingEngine.rebuild()
+SessionLoader.updateTargets() → MappingEngine.build()
     ↓
-读取 codemodel
+SessionStore.setMapping() → onDidChangeTargets
     ↓
-刷新 Targets Tree
-    ↓
-刷新 Test Explorer
+刷新 Targets Tree / 重置 Test Explorer
 ```
 
 ### 13.3 当前文件到 Target
@@ -1004,9 +1074,11 @@ MappingEngine.rebuild()
 ```text
 onDidChangeActiveTextEditor
     ↓
-当前文件路径
+SessionStore.setActiveSourcePath()
     ↓
-MappingEngine.findTargetsBySource()
+onDidChangeActiveSource
+    ↓
+SessionStore.findTargetsBySource()（命令解析 / TargetPicker）
     ↓
 TargetTreeDataProvider.findFirstSourceItemByFile()
     ↓
@@ -1018,11 +1090,11 @@ TreeView.reveal()
 ```text
 TargetTreeItem / SourceTreeItem
     ↓
-extension command
+src/app/commands/targetCommands.ts
     ↓
-resolveTargetFromArgument()
+resolveTargetFromArgument()（SessionStore.findTargetsBySource）
     ↓
-检查当前 preset
+检查当前 preset（commandGuards.ensurePreset）
     ↓
 WorkflowManager
     ├─ build
@@ -1033,23 +1105,23 @@ WorkflowManager
 ### 13.5 GoogleTest
 
 ```text
-Preset + Target
+SessionStore（preset + targets）
     ↓
-GTestTestController.setPreset() / setTargets()
+onDidChangeTargets → GTestTestController.reset()
     ↓
 （Test Explorer 刷新、Run/Debug 或构建成功后）discover()
     ↓
 筛选名字以 test 开头的 EXECUTABLE target
     ↓
---gtest_list_tests（gtestParser 解析）
+--gtest_list_tests（15s 超时，gtestParser 解析）
     ↓
 注册 Executable → Suite → Case
     ↓
 异步 gtestSourceLocator 补全源码位置
     ↓
 Test Explorer
-    ├─ Run
-    └─ Debug
+    ├─ Run（caseTimeoutMs 超时；取消时杀进程树）
+    └─ Debug（取消时 stopDebugging）
 ```
 
 ## 14. 外部依赖和 API 使用
@@ -1243,128 +1315,28 @@ taskExecutionEngine.ts
 
 ## 17. 当前架构的主要问题和关注点
 
-### 17.1 `extension.ts` 过重
+### 17.1 V0.5.0 已解决的架构问题
 
-`extension.ts` 目前约 690 行，同时承担：
-
-- 服务创建
-- 状态维护
-- 初始化流程
-- 命令注册
-- QuickPick 逻辑
-- target 解析
-- filter 管理
-- build directory 清理
-- TreeView 状态管理
-- editor 联动
-
-它实际上同时扮演：
+以下问题已在 V0.5.0 处理：
 
 ```text
-Composition Root
-Application Controller
-Command Controller
-UI Coordinator
-State Store
+extension.ts 过重
+  → 现在只做组装（约 120 行），命令拆分到 src/app/commands/，QuickPick 拆到 TargetPicker，
+    build directory 清理拆到 buildDirectoryCleaner，状态拆到 SessionStore
+
+compile_commands.json 假 fallback
+  → MappingEngine 改为无状态 build()，File API 空结果/异常时返回空索引并清空 targets
+
+状态分散、手动同步
+  → SessionStore 作为唯一状态源并发布事件，视图与 GTestTestController 自行订阅；
+    SessionLoader 负责惰性初始化、刷新与竞态守卫
+
+测试运行无超时、无法中断
+  → processRunner 提供超时与 token 取消（杀进程树），
+    cmakerunner.gtests.caseTimeoutMs 可配置
 ```
 
-后续可以按职责拆分为：
-
-```text
-ExtensionContext / ApplicationState
-CommandRegistrar
-TargetCommandHandler
-PresetCommandHandler
-ViewCoordinator
-```
-
-拆分应以降低耦合为目标，避免仅机械地拆文件。
-
-### 17.2 `compile_commands.json` fallback 尚未实现
-
-代码中有：
-
-```text
-falling back to compile_commands.json
-```
-
-但实际并没有读取 `compile_commands.json`。建议实现真正的 fallback，或删除相关日志。
-
-### 17.3 GoogleTest 运行/调试语义仍有简化
-
-`GTestTestController.run()` 对每个 case 单独启动进程，但仍有以下限制：
-
-```text
-execFile 未设置超时，单个挂起的测试会一直阻塞后续 case
-取消检查只发生在 case 之间，无法中断正在执行的 case
-进程输出在结束后一次性写回 TestRun，而不是流式输出
-```
-
-`debug()` 在调试器成功启动后立即把该组 case 标记为 passed，而不是等待调试会话结束。
-
-### 17.4 状态分散在多个对象中
-
-状态分别存储在：
-
-```text
-extension.ts
-  ├─ currentPreset
-  ├─ presets
-  └─ initializationPromise
-
-MappingEngine
-  └─ currentIndex
-
-TargetTreeDataProvider
-  ├─ targets
-  ├─ filteredTargets
-  ├─ activeSourcePath
-  └─ filter state
-
-GTestTestController
-  ├─ preset
-  ├─ targets
-  ├─ nodes
-  ├─ executableCaseGroups
-  ├─ executableLocations
-  ├─ discoverInProgress
-  └─ discoveryGeneration
-
-DebugSessionManager
-  └─ tracked sessions
-```
-
-因此 preset 切换时需要由 `extension.ts` 手动协调多个对象：
-
-```text
-currentPreset 更新
-    ↓
-setPreset 到 testController
-    ↓
-重新 rebuild mapping
-    ↓
-重新更新 target view
-```
-
-其中 `setPreset()` 与 `setTargets()` 都会重置整棵测试树，需要依赖后续 `discover()` 重新注册用例。
-
-### 17.5 构建完成后的测试刷新存在回调耦合
-
-`WorkflowManager` 通过 `onTargetBuilt` 回调通知 target 构建完成，最终触发：
-
-```text
-Build target 成功
-    ↓
-onTargetBuilt 回调（extension.ts）
-    ↓
-testController.setPreset / setTargets
-    ↓
-testController.discover()
-```
-
-这种方式简单，但 workflow 层已经间接知道构建后需要刷新测试。后续如果增加 compile commands、diagnostics 或 cache 刷新，可以考虑更明确的工作流结果事件。
-
-### 17.6 GoogleTest 发现策略偏保守
+### 17.2 GoogleTest 发现策略偏保守
 
 目前只扫描 target 对应的 executable，并且要求文件名以 `test` 开头。因此以下名称可能被漏检：
 
@@ -1375,9 +1347,9 @@ integration
 foo_spec
 ```
 
-后续可以考虑使用 CMake target 属性、允许配置测试 target 名称规则，或者对所有 executable 探测并增加缓存和并发控制。
+后续计划（尚未实施）：允许配置测试 target 命名正则，并对未命中命名的可执行文件读取二进制搜索 GoogleTest 标记字符串，命中后才执行 `--gtest_list_tests` 探测，同时增加缓存与并发控制。
 
-### 17.7 Multi-root workspace 支持有限
+### 17.3 Multi-root workspace 支持有限
 
 当前只取：
 
@@ -1387,7 +1359,7 @@ vscode.workspace.workspaceFolders?.[0]
 
 因此 multi-root workspace 中只有第一个目录会被处理。
 
-### 17.8 调试器类型存在平台假设
+### 17.4 调试器类型存在平台假设
 
 Microsoft C/C++ 的默认配置为：
 
@@ -1405,20 +1377,31 @@ macOS    → cppdbg + lldb
 flowchart TD
     A[VS Code activate] --> B[extension.ts]
 
+    B --> ST[SessionStore]
+    B --> SL[SessionLoader]
     B --> C[PresetProvider]
     B --> D[MappingEngine]
     B --> E[ConfigurationManager]
     B --> F[TaskExecutionEngine]
     B --> G[WorkflowManager]
     B --> H[GTestTestController]
-    B --> I[PresetTreeDataProvider]
-    B --> J[TargetTreeDataProvider]
+    B --> PV[PresetsView]
+    B --> TV[TargetsView]
+    B --> TP[TargetPicker]
     B --> K[DebugSessionManager]
+    B --> CMD[src/app/commands]
 
     C --> L[CMakePresets.json]
     C --> M[CMake CLI]
+    SL --> C
+    SL --> D
+    SL --> ST
     D --> N[CMake File API reply]
     D --> O[TargetInfo / MappingIndex]
+
+    ST -->|onDidChangeTargets| TV
+    ST -->|onDidChangeTargets| H
+    ST -->|onDidChangePresets| PV
 
     G --> E
     G --> F
@@ -1429,9 +1412,10 @@ flowchart TD
     H --> Q[VS Code Test Explorer]
     H --> R[gtestParser]
     H --> R2[gtestSourceLocator]
+    H --> PR[processRunner]
 
-    I --> Q1[Presets View]
-    J --> Q2[Targets View]
+    PV --> Q1[Presets View]
+    TV --> Q2[Targets View]
 
     F --> S[VS Code Tasks API]
     K --> T[VS Code Debug API]
@@ -1439,13 +1423,16 @@ flowchart TD
 
 ## 19. 总结
 
-当前项目是一个以 `extension.ts` 为中央编排器、以 CMake File API 为元数据来源、以 VS Code Tasks/Debug/Testing API 为执行和集成基础的 CMake 工作流扩展。
+当前项目是一个以 `extension.ts` 为组装入口、以 `SessionStore` 为唯一状态源、以 CMake File API 为元数据来源、以 VS Code Tasks/Debug/Testing API 为执行和集成基础的 CMake 工作流扩展。
 
 核心主链路是：
 
 ```text
 PresetProvider
+  → SessionLoader
   → MappingEngine
+  → SessionStore
+  → TargetsView / GTestTestController
   → WorkflowManager
   → TaskExecutionEngine
   → VS Code Tasks / Debug / Test Explorer
@@ -1454,17 +1441,13 @@ PresetProvider
 UI 主要由以下组件组成：
 
 ```text
-PresetTreeDataProvider
-TargetTreeDataProvider
+PresetsView（PresetTreeDataProvider）
+TargetsView（TargetTreeDataProvider）
 VS Code TestController
 ```
 
-整体结构已经具备清晰的服务化基础，当前最值得关注的架构问题是：
+整体结构已经具备清晰的服务化基础。V0.5.0 已解决入口过重、假 fallback、状态分散与测试运行不可中断的问题；当前最值得关注的遗留问题是：
 
 ```text
-extension.ts 过重
-compile_commands fallback 名不副实
-状态分散且依赖手动同步
-GoogleTest 自动发现规则偏保守
-测试运行缺少超时与中断能力
+GoogleTest 自动发现规则偏保守（后续独立计划：可配置命名正则 + 二进制标记探测）
 ```
