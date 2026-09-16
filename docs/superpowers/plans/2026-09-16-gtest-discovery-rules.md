@@ -1,6 +1,6 @@
 # GoogleTest 发现规则优化实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 让 GoogleTest 候选可执行文件的筛选从固定 `test*` 前缀改为可配置 glob 模式；用户设置后完全替换默认规则。
 
@@ -34,7 +34,7 @@ Modify: doc/architecture-overview.zh-CN.md / CHANGELOG.md
 - Create: `docs/superpowers/specs/2026-09-16-gtest-discovery-rules-design.md`
 - Create: `docs/superpowers/plans/2026-09-16-gtest-discovery-rules.md`
 
-- [ ] **Step 1: 基线验证**
+- [x] **Step 1: 基线验证**
 
 ```bash
 npm run compile && npm test
@@ -42,7 +42,7 @@ npm run compile && npm test
 
 Expected: 全绿（记录 passing 数量作为基线）。
 
-- [ ] **Step 2: 提交设计文档与计划**
+- [x] **Step 2: 提交设计文档与计划**
 
 ```bash
 git add docs/superpowers/specs/2026-09-16-gtest-discovery-rules-design.md docs/superpowers/plans/2026-09-16-gtest-discovery-rules.md
@@ -58,7 +58,7 @@ git commit -m "docs: add gtest discovery rules plan"
 - Modify: `package.json`
 - Test: `test/services.test.ts`
 
-- [ ] **Step 1: 写失败测试（`test/services.test.ts` 的 `describe('ConfigurationManager')` 内新增 3 个用例）**
+- [x] **Step 1: 写失败测试（`test/services.test.ts` 的 `describe('ConfigurationManager')` 内新增 3 个用例）**
 
 ```ts
     it('should default GoogleTest executable patterns to the test prefix', () => {
@@ -96,7 +96,7 @@ git commit -m "docs: add gtest discovery rules plan"
     });
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 ```bash
 npm run compile && npx mocha out/test/services.test.js
@@ -104,7 +104,7 @@ npm run compile && npx mocha out/test/services.test.js
 
 Expected: FAIL `manager.getGTestExecutablePatterns is not a function`。
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 `src/services/configurationManager.ts` 顶部新增导出常量：
 
@@ -128,7 +128,7 @@ export const DEFAULT_GTEST_EXECUTABLE_PATTERNS: readonly string[] = ['test*'];
   }
 ```
 
-- [ ] **Step 4: `package.json` 新增设置项（放在 `cmakerunner.gtests.caseTimeoutMs` 之后）**
+- [x] **Step 4: `package.json` 新增设置项（放在 `cmakerunner.gtests.caseTimeoutMs` 之后）**
 
 ```json
                 "cmakerunner.gtests.executablePatterns": {
@@ -143,7 +143,7 @@ export const DEFAULT_GTEST_EXECUTABLE_PATTERNS: readonly string[] = ['test*'];
                 },
 ```
 
-- [ ] **Step 5: 验证**
+- [x] **Step 5: 验证**
 
 ```bash
 npm run compile && npx mocha out/test/services.test.js
@@ -151,7 +151,7 @@ npm run compile && npx mocha out/test/services.test.js
 
 Expected: PASS。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/services/configurationManager.ts package.json test/services.test.ts
@@ -166,7 +166,7 @@ git commit -m "feat(testing): add configurable gtest executable patterns setting
 - Modify: `src/services/testController.ts`
 - Test: `test/testController.test.ts`
 
-- [ ] **Step 1: 写失败测试（替换 `test/testController.test.ts` 的 `describe('isTestNamedExecutable')` 整块，并更新 import）**
+- [x] **Step 1: 写失败测试（替换 `test/testController.test.ts` 的 `describe('isTestNamedExecutable')` 整块，并更新 import）**
 
 import 行改为：
 
@@ -223,7 +223,7 @@ import { GTestTestController, matchesGTestExecutableName } from '../src/services
   });
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 ```bash
 npm run compile && npx mocha out/test/testController.test.js
@@ -231,7 +231,7 @@ npm run compile && npx mocha out/test/testController.test.js
 
 Expected: FAIL（`matchesGTestExecutableName` 未定义 / 导入报错）。
 
-- [ ] **Step 3: 实现 `src/services/testController.ts`**
+- [x] **Step 3: 实现 `src/services/testController.ts`**
 
 删除导出的 `isTestNamedExecutable`，新增：
 
@@ -284,7 +284,7 @@ function globToRegExpSource(pattern: string): string {
     const patterns = this.configurationManager.getGTestExecutablePatterns();
 ```
 
-- [ ] **Step 4: 写发现级测试（`test/testController.test.ts`）**
+- [x] **Step 4: 写发现级测试（`test/testController.test.ts`）**
 
 把 `createController` 改为可注入目标与模式：
 
@@ -456,7 +456,7 @@ fixture 新增 `unit` 可执行文件（与现有 `before`/`after` 一致）：
   });
 ```
 
-- [ ] **Step 5: 验证**
+- [x] **Step 5: 验证**
 
 ```bash
 npm run compile && npm test
@@ -464,7 +464,7 @@ npm run compile && npm test
 
 Expected: 全绿。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/services/testController.ts test/testController.test.ts
@@ -480,11 +480,11 @@ git commit -m "feat(testing): filter gtest candidates with configurable name pat
 - Modify: `AGENTS.md`、`doc/architecture-overview.zh-CN.md`
 - Modify: `CHANGELOG.md`、`package.json`（version 0.5.1）
 
-- [ ] **Step 1: 更新 README 的发现规则描述**
+- [x] **Step 1: 更新 README 的发现规则描述**
 
 把「file name starts with `test` (case-insensitive)」相关句子改为：默认按 `test*` 前缀（大小写不敏感）筛选，可用 `cmakerunner.gtests.executablePatterns` 配置 glob 模式（`*`/`?`，含大写字母区分大小写）且配置后替换默认规则；探测确认逻辑不变。
 
-- [ ] **Step 2: 设置表新增一行**
+- [x] **Step 2: 设置表新增一行**
 
 ```markdown
 | `cmakerunner.gtests.executablePatterns` | `["test*"]` | Glob patterns for GoogleTest candidate executable names; replaces the default rule when set. |
@@ -492,15 +492,15 @@ git commit -m "feat(testing): filter gtest candidates with configurable name pat
 
 `doc/README.zh-CN.md` 对应中文说明。
 
-- [ ] **Step 3: 更新 AGENTS.md Key Details**
+- [x] **Step 3: 更新 AGENTS.md Key Details**
 
 把「whose executable file name starts with `test`」改为「whose executable file name matches `cmakerunner.gtests.executablePatterns` (default `test*`)」。
 
-- [ ] **Step 4: 更新 `doc/architecture-overview.zh-CN.md`**
+- [x] **Step 4: 更新 `doc/architecture-overview.zh-CN.md`**
 
 设置清单（§7 附近）与 §10/§13.5 的发现流程描述同步为「命名模式（默认 `test*`，可配置替换）→ `--gtest_list_tests` 确认」。
 
-- [ ] **Step 5: CHANGELOG 新增 V0.5.1 与 version**
+- [x] **Step 5: CHANGELOG 新增 V0.5.1 与 version**
 
 ```markdown
 ## V0.5.1 2026-09-16
@@ -510,7 +510,7 @@ git commit -m "feat(testing): filter gtest candidates with configurable name pat
 
 `package.json` → `"version": "0.5.1"`。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add README.md README-ALL.md doc/README.zh-CN.md AGENTS.md doc/architecture-overview.zh-CN.md CHANGELOG.md package.json
@@ -521,7 +521,7 @@ git commit -m "docs: describe configurable gtest discovery patterns (v0.5.1)"
 
 ## Task 4：最终验证
 
-- [ ] **Step 1: 全量测试**
+- [x] **Step 1: 全量测试**
 
 ```bash
 npm run compile && npm test
@@ -529,7 +529,7 @@ npm run compile && npm test
 
 Expected: 全绿。
 
-- [ ] **Step 2: 覆盖率**
+- [x] **Step 2: 覆盖率**
 
 ```bash
 npm run test:coverage
@@ -537,7 +537,7 @@ npm run test:coverage
 
 Expected: 正常输出覆盖率报告，无失败用例。
 
-- [ ] **Step 3: 打包**
+- [x] **Step 3: 打包**
 
 ```bash
 npm run package:vsix
@@ -545,7 +545,7 @@ npm run package:vsix
 
 Expected: `dist/` 生成 VSIX。
 
-- [ ] **Step 4: 检查旧描述残留**
+- [x] **Step 4: 检查旧描述残留**
 
 ```bash
 rg -n "starts with .?test|以 .?test 开头" README.md README-ALL.md doc AGENTS.md
