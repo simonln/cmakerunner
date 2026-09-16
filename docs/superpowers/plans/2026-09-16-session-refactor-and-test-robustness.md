@@ -67,7 +67,7 @@ git commit -m "docs: add session refactor and test robustness plan"
 - Modify: `src/services/mappingEngine.ts`
 - Modify: `test/integration.test.ts`（MappingEngine describe 全部改写）
 
-- [ ] **Step 1: `src/models.ts` 末尾新增工厂函数**
+- [x] **Step 1: `src/models.ts` 末尾新增工厂函数**
 
 ```ts
 export function createEmptyMapping(): MappingIndex {
@@ -78,7 +78,7 @@ export function createEmptyMapping(): MappingIndex {
 }
 ```
 
-- [ ] **Step 2: 重写 `src/services/mappingEngine.ts` 的公开接口**
+- [x] **Step 2: 重写 `src/services/mappingEngine.ts` 的公开接口**
 
 ```ts
 public async build(preset: PresetInfo): Promise<MappingIndex> {
@@ -104,7 +104,7 @@ public async build(preset: PresetInfo): Promise<MappingIndex> {
 
 删除 `currentIndex`、`getTargets()`、`findTargetsBySource()`、`createEmptyIndex()`；`buildIndexFromFileApi` 内 `return this.createEmptyIndex()` 改为 `return createEmptyMapping()`。新增导入 `createEmptyMapping`。
 
-- [ ] **Step 3: 改写 `test/integration.test.ts` 的 `describe('MappingEngine')`**
+- [x] **Step 3: 改写 `test/integration.test.ts` 的 `describe('MappingEngine')`**
 
 每个用例改为：
 
@@ -132,8 +132,8 @@ it('should not retain a previous mapping when the next build has no targets', as
 });
 ```
 
-- [ ] **Step 4: 验证**: `npm run compile && npm test`
-- [ ] **Step 5: Commit**
+- [x] **Step 4: 验证**: `npm run compile && npm test`
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/models.ts src/services/mappingEngine.ts test/integration.test.ts
@@ -148,7 +148,7 @@ git commit -m "refactor(mapping): make target index stateless and remove the fak
 - Create: `src/app/sessionStore.ts`
 - Create: `test/sessionStore.test.ts`
 
-- [ ] **Step 1: 先写 `test/sessionStore.test.ts`（失败）**
+- [x] **Step 1: 先写 `test/sessionStore.test.ts`（失败）**
 
 ```ts
 import * as assert from 'assert';
@@ -217,8 +217,8 @@ describe('session store', () => {
 
 （`normalizePath` 在 Windows 上小写，测试用 `\\src\\main.cpp` 覆盖分隔符归一化。）
 
-- [ ] **Step 2: 运行确认失败**：`npm test`（模块不存在报错）
-- [ ] **Step 3: 实现 `src/app/sessionStore.ts`**
+- [x] **Step 2: 运行确认失败**：`npm test`（模块不存在报错）
+- [x] **Step 3: 实现 `src/app/sessionStore.ts`**
 
 ```ts
 import * as vscode from 'vscode';
@@ -308,8 +308,8 @@ export class SessionStore implements vscode.Disposable {
 }
 ```
 
-- [ ] **Step 4: 验证**: `npm run compile && npm test`（新用例通过）
-- [ ] **Step 5: Commit**
+- [x] **Step 4: 验证**: `npm run compile && npm test`（新用例通过）
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/app/sessionStore.ts test/sessionStore.test.ts
@@ -324,7 +324,7 @@ git commit -m "refactor(state): introduce SessionStore as the single source of t
 - Create: `src/app/sessionLoader.ts`
 - Create: `test/sessionLoader.test.ts`
 
-- [ ] **Step 1: 先写 `test/sessionLoader.test.ts`（失败）**
+- [x] **Step 1: 先写 `test/sessionLoader.test.ts`（失败）**
 
 覆盖：`ensureInitialized` 只加载一次；`refresh` 使用记忆 preset；无 preset 时清空并告警；过期异步结果被 generation 守卫丢弃。
 
@@ -404,8 +404,8 @@ function createMapping(target: TargetInfo | undefined): MappingIndex {
 
 注：第一个用例的引擎返回空映射；第三个用例验证 `selectPreset(B)` 后旧 A 的挂起结果不会覆盖 B 的结果。
 
-- [ ] **Step 2: 运行确认失败**
-- [ ] **Step 3: 实现 `src/app/sessionLoader.ts`**
+- [x] **Step 2: 运行确认失败**
+- [x] **Step 3: 实现 `src/app/sessionLoader.ts`**
 
 ```ts
 import { createEmptyMapping } from '../models';
@@ -466,8 +466,8 @@ export class SessionLoader {
 }
 ```
 
-- [ ] **Step 4: 验证**: `npm run compile && npm test`
-- [ ] **Step 5: Commit**
+- [x] **Step 4: 验证**: `npm run compile && npm test`
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/app/sessionLoader.ts test/sessionLoader.test.ts
@@ -484,7 +484,7 @@ git commit -m "refactor(state): add SessionLoader for lazy init and target refre
 - Modify: `src/utils.ts`
 - Modify: `src/services/workflowManager.ts`
 
-- [ ] **Step 1: `src/utils.ts` 追加**
+- [x] **Step 1: `src/utils.ts` 追加**
 
 ```ts
 export function formatDuration(durationMs: number): string {
@@ -497,8 +497,8 @@ export function formatDuration(durationMs: number): string {
 }
 ```
 
-- [ ] **Step 2: `src/services/workflowManager.ts` 删除本地 `formatDuration`，改为 `import { formatDuration, quoteForPowerShell, quoteForShell } from '../utils';`**
-- [ ] **Step 3: 创建 `src/services/buildDirectoryCleaner.ts`**
+- [x] **Step 2: `src/services/workflowManager.ts` 删除本地 `formatDuration`，改为 `import { formatDuration, quoteForPowerShell, quoteForShell } from '../utils';`**
+- [x] **Step 3: 创建 `src/services/buildDirectoryCleaner.ts`**
 
 把原 `extension.ts:214-268` 的 `clearPresetBuildDirectory` 原样迁移为导出函数：
 
@@ -506,7 +506,7 @@ export function formatDuration(durationMs: number): string {
 export async function clearPresetBuildDirectory(preset: PresetInfo, logger: OutputLogger): Promise<boolean> { ... }
 ```
 
-- [ ] **Step 4: 创建 `src/ui/targetPicker.ts`**
+- [x] **Step 4: 创建 `src/ui/targetPicker.ts`**
 
 迁移原 `extension.ts` 的 quick pick 逻辑，类形式：
 
@@ -535,8 +535,8 @@ export class TargetPicker {
 
 关键差异：`getAutoFilteredTargets` 改从 `store.getTargets()` / `store.findTargetsBySource()` 取数；`getActiveEditorFilePath`（scheme === 'file'）作为文件内私有函数；`ensureDiscoveredTargets` 用 `store.getCurrentPreset()` 生成提示。
 
-- [ ] **Step 5: 验证**: `npm run compile && npm test`（行为不变，全绿）
-- [ ] **Step 6: Commit**
+- [x] **Step 5: 验证**: `npm run compile && npm test`（行为不变，全绿）
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/ui/targetPicker.ts src/services/buildDirectoryCleaner.ts src/utils.ts src/services/workflowManager.ts
@@ -551,7 +551,7 @@ git commit -m "refactor(ui): extract target picker, build directory cleaner, and
 - Create: `src/ui/presetsView.ts`
 - Create: `src/ui/targetsView.ts`
 
-- [ ] **Step 1: `src/ui/presetsView.ts`**
+- [x] **Step 1: `src/ui/presetsView.ts`**
 
 ```ts
 export class PresetsView implements vscode.Disposable {
@@ -591,7 +591,7 @@ export class PresetsView implements vscode.Disposable {
 }
 ```
 
-- [ ] **Step 2: `src/ui/targetsView.ts`**
+- [x] **Step 2: `src/ui/targetsView.ts`**
 
 ```ts
 export class TargetsView implements vscode.Disposable {
@@ -673,8 +673,8 @@ export class TargetsView implements vscode.Disposable {
 }
 ```
 
-- [ ] **Step 3: 验证**: `npm run compile && npm test`（此时 views 尚未接入 activate，扩展测试可能仍绿）
-- [ ] **Step 4: Commit**
+- [x] **Step 3: 验证**: `npm run compile && npm test`（此时 views 尚未接入 activate，扩展测试可能仍绿）
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/ui/presetsView.ts src/ui/targetsView.ts
@@ -695,7 +695,7 @@ git commit -m "refactor(ui): encapsulate preset and target tree views"
 - Modify: `src/extension.ts`
 - Modify: `test/extension.test.ts`（如需）
 
-- [ ] **Step 1: `src/app/commandGuards.ts`**
+- [x] **Step 1: `src/app/commandGuards.ts`**
 
 ```ts
 export function ensurePreset(store: SessionStore, logger: OutputLogger): PresetInfo | undefined { ...原 ensurePreset 逻辑... }
@@ -704,7 +704,7 @@ export function isRunnableTarget(target: TargetInfo): boolean { return getTarget
 export function ensureRunnableTarget(target: TargetInfo, action: string): boolean { ...原逻辑... }
 ```
 
-- [ ] **Step 2: `src/app/commands/types.ts`**
+- [x] **Step 2: `src/app/commands/types.ts`**
 
 ```ts
 export interface CommandContext {
@@ -719,7 +719,7 @@ export interface CommandContext {
 }
 ```
 
-- [ ] **Step 3: 三个命令模块**
+- [x] **Step 3: 三个命令模块**
 
 - `viewCommands.ts`：`refresh`（`ensureInitialized` → `refresh(store.getCurrentPreset()?.name)`）、`filterTargets`、`clearTargetFilter`、`refreshGTests`。
 - `presetCommands.ts`：`selectPreset`（quick pick / TreeItem）、`buildPreset`、`rebuildPreset`（`clearPresetBuildDirectory` → build → `sessionLoader.updateTargets()` → `showPresetBuildSuccess`）。内部 `selectPreset` 调用 `store.selectPreset` + `presetsView.reveal`。
@@ -727,7 +727,7 @@ export interface CommandContext {
 
 每个模块导出 `registerXxxCommands(context: CommandContext): vscode.Disposable[]`。
 
-- [ ] **Step 4: 修改 `src/services/testController.ts`**
+- [x] **Step 4: 修改 `src/services/testController.ts`**
 
 ```ts
 public constructor(
@@ -744,7 +744,7 @@ public constructor(
 
 - 删除 `preset`、`targets` 字段与 `setPreset()`/`setTargets()`；`discoverExecutables()` 用 `this.store.getCurrentPreset()`；`getExecutableCandidates()` 用 `this.store.getTargets()`；`dispose()` 释放 `disposables`。
 
-- [ ] **Step 5: 重写 `src/extension.ts` 为组装层**
+- [x] **Step 5: 重写 `src/extension.ts` 为组装层**
 
 ```ts
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -802,7 +802,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 `getInitialActiveSource` 为文件内小函数（`activeTextEditor` + scheme 检查）。
 
-- [ ] **Step 6: 验证**
+- [x] **Step 6: 验证**
 
 ```bash
 npm run compile && npm test
@@ -810,7 +810,7 @@ wc -l src/extension.ts        # ≤ 200
 grep -rn "setPreset\|setTargets" src/ || true   # 仅 targetTreeDataProvider.setTargets 的合法调用
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/app src/services/testController.ts src/extension.ts test/extension.test.ts
@@ -821,9 +821,9 @@ git commit -m "refactor(extension): split commands and wire views through Sessio
 
 ## Task A7：阶段 A 收尾验证
 
-- [ ] `npm run compile && npm test && npm run test:coverage`
-- [ ] `git status` 干净；必要时调整测试
-- [ ] Commit（如无改动则跳过）
+- [x] `npm run compile && npm test && npm run test:coverage`
+- [x] `git status` 干净；必要时调整测试
+- [x] Commit（如无改动则跳过）
 
 ---
 
@@ -833,11 +833,11 @@ git commit -m "refactor(extension): split commands and wire views through Sessio
 - Create: `src/services/processRunner.ts`
 - Create: `test/processRunner.test.ts`
 
-- [ ] **Step 1: 先写 `test/processRunner.test.ts`（失败）**
+- [x] **Step 1: 先写 `test/processRunner.test.ts`（失败）**
 
 用例：stdout/exit code；非零退出 → exitCode 3；`timeoutMs: 300` + 长眠脚本 → `timedOut`；token 取消 → `cancelled`（见设计文档；用 `process.execPath -e` 保持跨平台）。
 
-- [ ] **Step 2: 实现 `src/services/processRunner.ts`**
+- [x] **Step 2: 实现 `src/services/processRunner.ts`**
 
 ```ts
 import { execFile, spawn } from 'child_process';
@@ -929,8 +929,8 @@ export function runProcess(file: string, args: readonly string[], options: Proce
 }
 ```
 
-- [ ] **Step 3: 验证**: `npm run compile && npm test`
-- [ ] **Step 4: Commit**
+- [x] **Step 3: 验证**: `npm run compile && npm test`
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/services/processRunner.ts test/processRunner.test.ts
@@ -946,8 +946,8 @@ git commit -m "feat(testing): add cancellable process runner with timeout and tr
 - Modify: `package.json`（contributes.configuration.properties）
 - Modify: `test/services.test.ts`
 
-- [ ] **Step 1: 测试先行（`test/services.test.ts` 增加 3 个用例：默认 60000、0 保留、负数/非数字回退 60000）**
-- [ ] **Step 2: 实现**
+- [x] **Step 1: 测试先行（`test/services.test.ts` 增加 3 个用例：默认 60000、0 保留、负数/非数字回退 60000）**
+- [x] **Step 2: 实现**
 
 ```ts
 public getGTestCaseTimeoutMs(): number {
@@ -960,7 +960,7 @@ public getGTestCaseTimeoutMs(): number {
 }
 ```
 
-- [ ] **Step 3: `package.json` 增加设置项**
+- [x] **Step 3: `package.json` 增加设置项**
 
 ```json
 "cmakerunner.gtests.caseTimeoutMs": {
@@ -970,7 +970,7 @@ public getGTestCaseTimeoutMs(): number {
 }
 ```
 
-- [ ] **Step 4: 验证 + Commit**
+- [x] **Step 4: 验证 + Commit**
 
 ```bash
 git add src/services/configurationManager.ts package.json test/services.test.ts
@@ -986,13 +986,13 @@ git commit -m "feat(testing): add configurable per-case timeout setting"
 - Modify: `test/testController.test.ts`
 - Modify: `test/vscode-mock.js`（补 `debug.stopDebugging`）
 
-- [ ] **Step 1: `run()` 重写**
+- [x] **Step 1: `run()` 重写**
 
 - 删除本地 `execFileResult` 与 `ExecResult`，导入 `runProcess`/`ProcessResult`；`listExecutableCases` 使用 `runProcess(..., { cwd, timeoutMs: 15000 })`。
 - `run()` 按设计执行：超时 → `run.failed(item, new vscode.TestMessage(\`Timed out after ${formatDuration(timeoutMs)}.\`), duration)` 并继续；取消 → `run.skipped(item)` 后 `continue`（后续循环 token 检查补 skipped）；`run.end()` 放 `finally`。
 - `debug()`：`const cancellationListener = token.onCancellationRequested(() => { void vscode.debug.stopDebugging(); });`，`finally` 中 dispose 并 `run.end()`。
 
-- [ ] **Step 2: `test/testController.test.ts` 增加运行分支测试**
+- [x] **Step 2: `test/testController.test.ts` 增加运行分支测试**
 
 patch `require('../src/services/processRunner').runProcess`：
 - 首次调用（list）返回 `{ exitCode: 0, stdout: 'Suite.\n  Case\n', ... }`；
@@ -1001,8 +1001,8 @@ patch `require('../src/services/processRunner').runProcess`：
 
 测试通过重写 `(controller as any).createTestRun` 捕获调用记录。
 
-- [ ] **Step 3: 验证**: `npm run compile && npm test`
-- [ ] **Step 4: Commit**
+- [x] **Step 3: 验证**: `npm run compile && npm test`
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/services/testController.ts test/testController.test.ts test/vscode-mock.js
@@ -1020,11 +1020,11 @@ git commit -m "feat(testing): enforce per-case timeouts and support cancelling t
 - Modify: `CHANGELOG.md`
 - Modify: `package.json`（version 0.5.0）
 
-- [ ] 更新架构文档：扩展入口改为组装层；新增 `src/app/` 说明；§6.4 改为"build() 无状态、空结果清空"；§7 增加 `gtests.caseTimeoutMs`；§10.3 描述超时/取消语义；§13 数据流更新为 store 事件驱动。
-- [ ] README 增加超时设置与状态行为说明。
-- [ ] AGENTS.md：Project Structure 增加 `src/app/`；Key Details 补充测试超时设置。
-- [ ] CHANGELOG 顶部新增 `## V0.5.0 2026-09-16`；`package.json` version → 0.5.0。
-- [ ] 验证 + Commit
+- [x] 更新架构文档：扩展入口改为组装层；新增 `src/app/` 说明；§6.4 改为"build() 无状态、空结果清空"；§7 增加 `gtests.caseTimeoutMs`；§10.3 描述超时/取消语义；§13 数据流更新为 store 事件驱动。
+- [x] README 增加超时设置与状态行为说明。
+- [x] AGENTS.md：Project Structure 增加 `src/app/`；Key Details 补充测试超时设置。
+- [x] CHANGELOG 顶部新增 `## V0.5.0 2026-09-16`；`package.json` version → 0.5.0。
+- [x] 验证 + Commit
 
 ```bash
 npm run compile && npm test
@@ -1036,6 +1036,6 @@ git commit -m "docs(release): V0.5.0 architecture refactor and test robustness"
 
 ## Task D2：最终验证
 
-- [ ] `npm run compile && npm test && npm run test:coverage && npm run package:vsix`
-- [ ] `git status` 干净；`git log --oneline -12` 逐提交复核
-- [ ] 汇总：测试套件数、用例数、覆盖率摘要、`extension.ts` 行数
+- [x] `npm run compile && npm test && npm run test:coverage && npm run package:vsix`
+- [x] `git status` 干净；`git log --oneline -12` 逐提交复核
+- [x] 汇总：测试套件数、用例数、覆盖率摘要、`extension.ts` 行数
