@@ -4,6 +4,8 @@ import { extractProgramPath, getDefaultExecutablePath, replaceTemplateVariables 
 
 type PresetTaskVariables = Pick<TaskVariables, 'buildDir' | 'preset' | 'sourceDir'>;
 
+export const DEFAULT_GTEST_EXECUTABLE_PATTERNS: readonly string[] = ['test*'];
+
 export class ConfigurationManager {
   public getPresetConfigureCommand(variables: PresetTaskVariables): string {
     return replaceTemplateVariables(this.settings().get<string>('tasks.presetConfigureCommandTemplate', ''), variables, { quoteSpacedValues: true });
@@ -28,6 +30,18 @@ export class ConfigurationManager {
     }
 
     return value;
+  }
+
+  public getGTestExecutablePatterns(): readonly string[] {
+    const value = this.settings().get<unknown>('gtests.executablePatterns', [...DEFAULT_GTEST_EXECUTABLE_PATTERNS]);
+    if (!Array.isArray(value)) {
+      return DEFAULT_GTEST_EXECUTABLE_PATTERNS;
+    }
+
+    const patterns = value
+      .filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+      .map((entry) => entry.trim());
+    return patterns.length > 0 ? patterns : DEFAULT_GTEST_EXECUTABLE_PATTERNS;
   }
 
   public resolveDebugProgram(variables: TaskVariables): string {

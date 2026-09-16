@@ -143,6 +143,40 @@ it('should call appendLine for info level', () => {
       vscode.workspace.getConfiguration = originalGetConfig;
     });
 
+    it('should default GoogleTest executable patterns to the test prefix', () => {
+      const originalGetConfig = vscode.workspace.getConfiguration;
+      (vscode.workspace as any).getConfiguration = () => createMockConfig({});
+
+      const manager = new ConfigurationManager();
+      assert.deepStrictEqual([...manager.getGTestExecutablePatterns()], ['test*']);
+
+      vscode.workspace.getConfiguration = originalGetConfig;
+    });
+
+    it('should use configured GoogleTest executable patterns', () => {
+      const originalGetConfig = vscode.workspace.getConfiguration;
+      (vscode.workspace as any).getConfiguration = () => createMockConfig({
+        'gtests.executablePatterns': ['*_test', ' MathTest '],
+      });
+
+      const manager = new ConfigurationManager();
+      assert.deepStrictEqual([...manager.getGTestExecutablePatterns()], ['*_test', 'MathTest']);
+
+      vscode.workspace.getConfiguration = originalGetConfig;
+    });
+
+    it('should fall back to the default pattern for invalid pattern settings', () => {
+      const originalGetConfig = vscode.workspace.getConfiguration;
+
+      (vscode.workspace as any).getConfiguration = () => createMockConfig({ 'gtests.executablePatterns': ['', 42] });
+      assert.deepStrictEqual([...new ConfigurationManager().getGTestExecutablePatterns()], ['test*']);
+
+      (vscode.workspace as any).getConfiguration = () => createMockConfig({ 'gtests.executablePatterns': 'test*' });
+      assert.deepStrictEqual([...new ConfigurationManager().getGTestExecutablePatterns()], ['test*']);
+
+      vscode.workspace.getConfiguration = originalGetConfig;
+    });
+
     it('should get preset configure command with variables', () => {
       const mockConfig = createMockConfig({
         'tasks.presetConfigureCommandTemplate': 'cmake --preset ${preset} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON',

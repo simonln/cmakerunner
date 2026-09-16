@@ -215,6 +215,16 @@
                     "type": "number",
                     "default": 60000,
                     "description": "Per-test-case timeout in milliseconds for Test Explorer GoogleTest runs. Use 0 to disable the timeout."
+                },
+                "cmakerunner.gtests.executablePatterns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": [
+                        "test*"
+                    ],
+                    "markdownDescription": "Glob patterns matched against the GoogleTest executable file name without its extension. Supports `*` and `?`. Patterns containing uppercase letters are case-sensitive; others are case-insensitive. When set, these patterns replace the default `test*` rule. Candidate executables are still confirmed with `--gtest_list_tests`."
                 }
             }
         }
