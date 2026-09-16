@@ -29,6 +29,13 @@ export interface MappingIndex {
   readonly sourceToTargets: Map<string, string[]>;
 }
 
+export function createEmptyMapping(): MappingIndex {
+  return {
+    targets: new Map<string, TargetInfo>(),
+    sourceToTargets: new Map<string, string[]>(),
+  };
+}
+
 export interface TaskVariables {
   readonly buildDir: string;
   readonly preset: string;

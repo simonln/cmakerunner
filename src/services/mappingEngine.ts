@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { MappingIndex, PresetInfo, TargetInfo } from '../models';
+import { MappingIndex, PresetInfo, TargetInfo, createEmptyMapping } from '../models';
 import { getDefaultExecutablePath, normalizePath, parseJsonBuffer, toAbsolutePath, uniqueSorted } from '../utils';
 import { OutputLogger } from './outputLogger';
 
@@ -54,34 +54,24 @@ const SUPPORTED_TARGET_TYPES = new Set([
 export class MappingEngine {
   public constructor(private readonly logger: OutputLogger) {}
 
-  private currentIndex: MappingIndex = {
-    targets: new Map<string, TargetInfo>(),
-    sourceToTargets: new Map<string, string[]>(),
-  };
-
-  public async rebuild(preset: PresetInfo): Promise<void> {
+  public async build(preset: PresetInfo): Promise<MappingIndex> {
     try {
-      const fileApiIndex = await this.buildIndexFromFileApi(preset);
-      if (fileApiIndex.targets.size > 0) {
-        this.logger.info(`Mapping rebuilt from CMake File API with ${fileApiIndex.targets.size} executable target(s)`);
-        this.currentIndex = fileApiIndex;
-        return;
+      const index = await this.buildIndexFromFileApi(preset);
+      if (index.targets.size > 0) {
+        this.logger.info(`Mapping rebuilt from CMake File API with ${index.targets.size} supported target(s)`);
+        return index;
       }
-      this.logger.warn(`CMake File API returned no executable targets for preset ${preset.name}, falling back to compile_commands.json`);
+
+      this.logger.warn(
+        `No supported targets found in the CMake File API reply for preset ${preset.name}; run Build on this preset first`,
+      );
+      return createEmptyMapping();
     } catch (error) {
-      this.logger.warn(`Failed to rebuild mapping from CMake File API for preset ${preset.name}: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `Unable to read the CMake File API reply for preset ${preset.name}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return createEmptyMapping();
     }
-  }
-
-  public getTargets(): TargetInfo[] {
-    return Array.from(this.currentIndex.targets.values()).sort((left, right) => left.displayName.localeCompare(right.displayName));
-  }
-
-  public findTargetsBySource(sourcePath: string): TargetInfo[] {
-    const targetIds = this.currentIndex.sourceToTargets.get(normalizePath(sourcePath)) ?? [];
-    return targetIds
-      .map((targetId) => this.currentIndex.targets.get(targetId))
-      .filter((target): target is TargetInfo => !!target);
   }
 
   private async buildIndexFromFileApi(preset: PresetInfo): Promise<MappingIndex> {
@@ -97,7 +87,7 @@ export class MappingEngine {
 
     const latestIndexFileName = indexFileNames[0];
     if (!latestIndexFileName) {
-      return this.createEmptyIndex();
+      return createEmptyMapping();
     }
 
     const indexPath = vscode.Uri.file(path.join(replyDir.fsPath, latestIndexFileName));
@@ -109,7 +99,7 @@ export class MappingEngine {
     const codemodelRef = parsedIndex.objects?.find((entry) => entry.kind === 'codemodel')
       ?? replyEntries.find((entry) => entry.kind === 'codemodel');
     if (!codemodelRef?.jsonFile) {
-      return this.createEmptyIndex();
+      return createEmptyMapping();
     }
 
     const codemodelPath = vscode.Uri.file(path.join(replyDir.fsPath, codemodelRef.jsonFile));
@@ -182,12 +172,5 @@ export class MappingEngine {
     }
 
     return getDefaultExecutablePath(preset.binaryDir, target.name as string);
-  }
-
-  private createEmptyIndex(): MappingIndex {
-    return {
-      targets: new Map<string, TargetInfo>(),
-      sourceToTargets: new Map<string, string[]>(),
-    };
   }
 }

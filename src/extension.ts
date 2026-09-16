@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { PresetInfo, TargetInfo } from './models';
+import { MappingIndex, PresetInfo, TargetInfo, createEmptyMapping } from './models';
 import { ConfigurationManager } from './services/configurationManager';
 import { DebugSessionManager } from './services/debugSessionManager';
 import { MappingEngine } from './services/mappingEngine';
@@ -12,7 +12,7 @@ import { WorkflowManager } from './services/workflowManager';
 import { getRegexFilterError } from './ui/filterMatcher';
 import { PresetTreeDataProvider, PresetTreeItem } from './ui/presetTreeDataProvider';
 import { SourceTreeItem, TargetTreeDataProvider, TargetTreeItem } from './ui/targetTreeDataProvider';
-import { relativeDisplayPath } from './utils';
+import { normalizePath, relativeDisplayPath } from './utils';
 
 interface TargetQuickPickItem extends vscode.QuickPickItem {
   readonly target?: TargetInfo;
@@ -50,7 +50,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const taskExecutionEngine = new TaskExecutionEngine(workspaceRoot, configurationManager, logger);
   let presets: PresetInfo[] = [];
   let currentPreset: PresetInfo | undefined;
+  let currentMapping: MappingIndex = createEmptyMapping();
   let initializationPromise: Promise<void> | undefined;
+
+  const getCurrentTargets = (): TargetInfo[] =>
+    Array.from(currentMapping.targets.values()).sort((left, right) => left.displayName.localeCompare(right.displayName));
+
+  const findMappedTargets = (sourcePath: string): TargetInfo[] => {
+    const targetIds = currentMapping.sourceToTargets.get(normalizePath(sourcePath)) ?? [];
+    return targetIds
+      .map((targetId) => currentMapping.targets.get(targetId))
+      .filter((target): target is TargetInfo => !!target);
+  };
 
   const refreshPresetTree = (): void => {
     presetTreeDataProvider.setPresets(presets, currentPreset?.name);
@@ -74,8 +85,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     logger.info(`Updating targets. preset=${currentPreset?.name ?? 'none'}, activeFile=${activeFile ?? 'none'}`);
 
     if (currentPreset) {
-      await mappingEngine.rebuild(currentPreset);
-      const targets = mappingEngine.getTargets();
+      currentMapping = await mappingEngine.build(currentPreset);
+      const targets = getCurrentTargets();
       targetTreeDataProvider.setTargets(targets, currentPreset.sourceDir, activeFile);
       testController.setPreset(currentPreset);
       testController.setTargets(targets);
@@ -84,6 +95,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
 
     logger.warn('Skipping target update because no preset is selected');
+    currentMapping = createEmptyMapping();
     targetTreeDataProvider.setTargets([], workspaceRoot, activeFile);
     testController.setPreset(undefined);
     testController.setTargets([]);
@@ -115,7 +127,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     debugSessionManager,
     async (preset, target) => {
       testController.setPreset(preset);
-      testController.setTargets(mappingEngine.getTargets());
+      testController.setTargets(getCurrentTargets());
       await testController.discover();
       logger.info(`Refreshed GoogleTest cases after building ${target.name}`);
     },
@@ -273,7 +285,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
 
     if (value instanceof SourceTreeItem) {
-      const target = mappingEngine.findTargetsBySource(value.sourcePath)[0];
+      const target = findMappedTargets(value.sourcePath)[0];
       return target;
     }
 
@@ -284,7 +296,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       return undefined;
     }
 
-    const target = mappingEngine.findTargetsBySource(activePath)[0];
+    const target = findMappedTargets(activePath)[0];
     if (!target) {
       logger.warn(`No target mapping found for active file: ${activePath}`);
       void vscode.window.showWarningMessage('The active source file is not mapped to any executable target.');
@@ -298,14 +310,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
 
   const getAutoFilteredTargets = (userActiveFile: boolean): TargetInfo[] => {
-    const targets = mappingEngine.getTargets();
+    const targets = getCurrentTargets();
     if (userActiveFile) {
         const activeFilePath = getActiveEditorFilePath();
             if (!activeFilePath) {
             return targets;
         }
 
-        const mappedTargets = mappingEngine.findTargetsBySource(activeFilePath);
+        const mappedTargets = findMappedTargets(activeFilePath);
         if (mappedTargets.length > 0) {
             return mappedTargets;
         }

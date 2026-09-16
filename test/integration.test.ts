@@ -5,6 +5,7 @@ import * as vscode from 'vscode';
 import { PresetProvider } from '../src/services/presetProvider';
 import { MappingEngine } from '../src/services/mappingEngine';
 import { OutputLogger } from '../src/services/outputLogger';
+import { normalizePath } from '../src/utils';
 
 describe('integration', () => {
   const testWorkspaceDir = path.join(__dirname, 'fixtures', 'workspace');
@@ -248,97 +249,112 @@ describe('integration', () => {
   });
 
   describe('MappingEngine', () => {
-    it('should create empty index when no build directory exists', async () => {
+    it('should return an empty mapping when no build directory exists', async () => {
       const engine = new MappingEngine(logger);
-      const preset = {
+      const mapping = await engine.build({
         name: 'debug',
         displayName: 'Debug',
         binaryDir: '/nonexistent/build/debug',
         sourceDir: testWorkspaceDir,
-      };
-      await engine.rebuild(preset);
-      const targets = engine.getTargets();
-      assert.strictEqual(targets.length, 0);
+      });
+      assert.strictEqual(mapping.targets.size, 0);
     });
 
-    it('should return empty array for non-existent source mapping', async () => {
+    it('should build executable/shared-library/utility target mapping from file api reply', async () => {
       const engine = new MappingEngine(logger);
-      const targets = engine.findTargetsBySource('/nonexistent/file.cpp');
-      assert.strictEqual(targets.length, 0);
-    });
-
-    it('should build executable/shared-library/utility target index from file api reply', async () => {
-      const engine = new MappingEngine(logger);
-      await engine.rebuild({
+      const mapping = await engine.build({
         name: 'debug',
         displayName: 'Debug',
         binaryDir: path.join(mappingWorkspaceDir, 'build', 'debug'),
         sourceDir: mappingWorkspaceDir,
       });
-      const targets = engine.getTargets();
+      const targets = [...mapping.targets.values()];
       assert.strictEqual(targets.length, 2);
-      assert.deepStrictEqual(targets.map((target) => target.name), ['app', 'install']);
-      assert.strictEqual(targets[0].configuration, 'Debug');
-      assert.strictEqual(targets[0].sourceFiles.length, 1);
-      assert.ok(targets[0].guessedExecutablePath.includes('bin'));
-      assert.strictEqual(targets[1].type, 'UTILITY');
+      assert.deepStrictEqual(targets.map((target) => target.name).sort(), ['app', 'install']);
+      const appTarget = targets.find((target) => target.name === 'app');
+      assert.ok(appTarget);
+      assert.strictEqual(appTarget.configuration, 'Debug');
+      assert.strictEqual(appTarget.sourceFiles.length, 1);
+      assert.ok(appTarget.guessedExecutablePath.includes('bin'));
+      const installTarget = targets.find((target) => target.name === 'install');
+      assert.strictEqual(installTarget?.type, 'UTILITY');
     });
 
-    it('should find target by normalized source path after rebuild', async () => {
+    it('should map a normalized source path to the owning target', async () => {
       const engine = new MappingEngine(logger);
       const sourcePath = path.join(mappingWorkspaceDir, 'src', 'main.cpp');
-      await engine.rebuild({
+      const mapping = await engine.build({
         name: 'debug',
         displayName: 'Debug',
         binaryDir: path.join(mappingWorkspaceDir, 'build', 'debug'),
         sourceDir: mappingWorkspaceDir,
       });
-      const targets = engine.findTargetsBySource(sourcePath);
-      assert.strictEqual(targets.length, 1);
-      assert.strictEqual(targets[0].name, 'app');
+      const targetIds = mapping.sourceToTargets.get(normalizePath(sourcePath)) ?? [];
+      assert.strictEqual(targetIds.length, 1);
+      assert.strictEqual(mapping.targets.get(targetIds[0])?.name, 'app');
     });
 
-    it('should keep empty target index when reply has no index files', async () => {
+    it('should return an empty mapping when reply has no index files', async () => {
       const engine = new MappingEngine(logger);
-      await engine.rebuild({
+      const mapping = await engine.build({
         name: 'debug',
         displayName: 'Debug',
         binaryDir: path.join(mappingEmptyWorkspaceDir, 'build', 'debug'),
         sourceDir: mappingEmptyWorkspaceDir,
       });
-      assert.deepStrictEqual(engine.getTargets(), []);
+      assert.strictEqual(mapping.targets.size, 0);
     });
 
-    it('should keep empty target index when codemodel reference is missing', async () => {
+    it('should return an empty mapping when codemodel reference is missing', async () => {
       const engine = new MappingEngine(logger);
-      await engine.rebuild({
+      const mapping = await engine.build({
         name: 'debug',
         displayName: 'Debug',
         binaryDir: path.join(mappingNoCodemodelWorkspaceDir, 'build', 'debug'),
         sourceDir: mappingNoCodemodelWorkspaceDir,
       });
-      assert.deepStrictEqual(engine.getTargets(), []);
+      assert.strictEqual(mapping.targets.size, 0);
+    });
+
+    it('should not retain a previous mapping when the next build has no targets', async () => {
+      const engine = new MappingEngine(logger);
+      const populated = await engine.build({
+        name: 'debug',
+        displayName: 'Debug',
+        binaryDir: path.join(mappingWorkspaceDir, 'build', 'debug'),
+        sourceDir: mappingWorkspaceDir,
+      });
+      const empty = await engine.build({
+        name: 'debug',
+        displayName: 'Debug',
+        binaryDir: path.join(mappingEmptyWorkspaceDir, 'build', 'debug'),
+        sourceDir: mappingEmptyWorkspaceDir,
+      });
+      assert.ok(populated.targets.size > 0);
+      assert.strictEqual(empty.targets.size, 0);
     });
 
     it('should build per-configuration executable targets and map one source to multiple targets', async () => {
       const engine = new MappingEngine(logger);
       const sourcePath = path.join(mappingMultiConfigWorkspaceDir, 'src', 'main.cpp');
-      await engine.rebuild({
+      const mapping = await engine.build({
         name: 'debug',
         displayName: 'Debug',
         binaryDir: path.join(mappingMultiConfigWorkspaceDir, 'build', 'debug'),
         sourceDir: mappingMultiConfigWorkspaceDir,
       });
 
-      const targets = engine.getTargets();
-      const mappedTargets = engine.findTargetsBySource(sourcePath);
+      const targets = [...mapping.targets.values()];
+      const mappedTargets = (mapping.sourceToTargets.get(normalizePath(sourcePath)) ?? [])
+        .map((targetId) => mapping.targets.get(targetId))
+        .filter((target): target is NonNullable<typeof target> => !!target);
       const defaultExecutableName = process.platform === 'win32' ? 'app.exe' : 'app';
       const expectedTargetIds = process.platform === 'win32'
         ? ['app::debug', 'app::release']
         : ['app::Debug', 'app::Release'];
       assert.strictEqual(targets.length, 2);
-      assert.deepStrictEqual(targets.map((target) => target.displayName), ['app [Debug]', 'app [Release]']);
-      assert.deepStrictEqual(mappedTargets.map((target) => target.id), expectedTargetIds);
+      assert.deepStrictEqual(targets.map((target) => target.displayName).sort(), ['app [Debug]', 'app [Release]']);
+      assert.deepStrictEqual(mappedTargets.map((target) => target.id).sort(), [...expectedTargetIds].sort());
       assert.ok(mappedTargets.some((target) => target.guessedExecutablePath.endsWith(path.join('build', 'debug', defaultExecutableName))));
       assert.ok(mappedTargets.some((target) => target.guessedExecutablePath.endsWith(path.join('bin', 'release', 'app'))));
     });
