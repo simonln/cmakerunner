@@ -210,6 +210,11 @@
                     "type": "boolean",
                     "default": true,
                     "description": "Clear the shared terminal before starting a build or run task."
+                },
+                "cmakerunner.gtests.caseTimeoutMs": {
+                    "type": "number",
+                    "default": 60000,
+                    "description": "Per-test-case timeout in milliseconds for Test Explorer GoogleTest runs. Use 0 to disable the timeout."
                 }
             }
         }

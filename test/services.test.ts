@@ -110,6 +110,39 @@ it('should call appendLine for info level', () => {
       }
     };
 
+    it('should default the GoogleTest case timeout to 60000 ms', () => {
+      const originalGetConfig = vscode.workspace.getConfiguration;
+      (vscode.workspace as any).getConfiguration = () => createMockConfig({});
+
+      const manager = new ConfigurationManager();
+      assert.strictEqual(manager.getGTestCaseTimeoutMs(), 60000);
+
+      vscode.workspace.getConfiguration = originalGetConfig;
+    });
+
+    it('should keep a configured zero timeout to disable the limit', () => {
+      const originalGetConfig = vscode.workspace.getConfiguration;
+      (vscode.workspace as any).getConfiguration = () => createMockConfig({ 'gtests.caseTimeoutMs': 0 });
+
+      const manager = new ConfigurationManager();
+      assert.strictEqual(manager.getGTestCaseTimeoutMs(), 0);
+
+      vscode.workspace.getConfiguration = originalGetConfig;
+    });
+
+    it('should fall back to 60000 ms for invalid timeout values', () => {
+      const originalGetConfig = vscode.workspace.getConfiguration;
+      (vscode.workspace as any).getConfiguration = () => createMockConfig({ 'gtests.caseTimeoutMs': -5 });
+
+      const manager = new ConfigurationManager();
+      assert.strictEqual(manager.getGTestCaseTimeoutMs(), 60000);
+
+      (vscode.workspace as any).getConfiguration = () => createMockConfig({ 'gtests.caseTimeoutMs': Number.NaN });
+      assert.strictEqual(new ConfigurationManager().getGTestCaseTimeoutMs(), 60000);
+
+      vscode.workspace.getConfiguration = originalGetConfig;
+    });
+
     it('should get preset configure command with variables', () => {
       const mockConfig = createMockConfig({
         'tasks.presetConfigureCommandTemplate': 'cmake --preset ${preset} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON',

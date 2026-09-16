@@ -21,6 +21,15 @@ export class ConfigurationManager {
     return this.settings().get<boolean>('tasks.clearTerminalBeforeRun', true);
   }
 
+  public getGTestCaseTimeoutMs(): number {
+    const value = this.settings().get<number>('gtests.caseTimeoutMs', 60000);
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+      return 60000;
+    }
+
+    return value;
+  }
+
   public resolveDebugProgram(variables: TaskVariables): string {
     const runCommand = this.getRunCommand(variables);
     const inferredProgram = extractProgramPath(runCommand);
