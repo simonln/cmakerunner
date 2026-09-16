@@ -22,7 +22,7 @@ Implementation and architecture notes are available in `doc/architecture.zh-CN.m
 - Reveals the matching source node when the active editor switches to a mapped file
 - Supports target filtering by target name, executable name, or source file name
 - Builds, runs, and debugs targets from the `Targets` view or from the active mapped source file
-- Registers GoogleTest cases in VS Code Test Explorer from discovered `EXECUTABLE` targets whose file name starts with `test` (case-insensitive), probed with `--gtest_list_tests`
+- Registers GoogleTest cases in VS Code Test Explorer from discovered `EXECUTABLE` targets whose file name matches `cmakerunner.gtests.executablePatterns` (default `test*`, case-insensitive), probed with `--gtest_list_tests`
 - Supports Test Explorer run/debug actions for discovered GoogleTest cases
 - Adds an editor title build button that starts from the current file and lets you pick from auto-filtered targets
 - Lets you customize configure, build, and run command templates through `settings.json`
@@ -110,7 +110,7 @@ By default, both actions build the target first. `Run` and `Debug` only support 
 ### 6. Run or debug GoogleTest cases
 
 GoogleTest cases are registered in VS Code's built-in **Test Explorer**.
-After a preset is selected and targets are refreshed, the extension picks candidate executables from the discovered `EXECUTABLE` targets whose file name starts with `test` (case-insensitive). Each executable candidate is probed with `--gtest_list_tests`; executables that report GoogleTest cases are added to Test Explorer.
+After a preset is selected and targets are refreshed, the extension picks candidate executables from the discovered `EXECUTABLE` targets whose file name matches `cmakerunner.gtests.executablePatterns`. The default pattern is `test*` (case-insensitive); when you configure your own patterns they replace the default. Each executable candidate is probed with `--gtest_list_tests`; executables that report GoogleTest cases are added to Test Explorer.
 
 Use Test Explorer's built-in `Run` and `Debug` actions on a test case, suite, or executable group. Run uses `--gtest_filter=<suite.case>` for each selected case. Debug starts the installed C/C++ debugger directly with the matching GoogleTest filter.
 
@@ -156,6 +156,7 @@ The extension exposes these settings in VS Code `settings.json`:
 | `cmakerunner.tasks.runCommandTemplate` | `${executableCommand}` | Run command template used for targets |
 | `cmakerunner.tasks.clearTerminalBeforeRun` | `true` | Clears the shared terminal before build or run tasks |
 | `cmakerunner.gtests.caseTimeoutMs` | `60000` | Per-test-case timeout in milliseconds for Test Explorer GoogleTest runs. Use `0` to disable the timeout. |
+| `cmakerunner.gtests.executablePatterns` | `["test*"]` | Glob patterns (`*`, `?`) matched against GoogleTest candidate executable names without extension. Patterns containing uppercase letters are case-sensitive; others are case-insensitive. When set, they replace the default `test*` rule. Candidates are still confirmed with `--gtest_list_tests`. |
 
 ### Debugger Selection
 

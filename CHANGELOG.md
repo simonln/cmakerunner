@@ -1,5 +1,9 @@
 # CMake Runner
 
+## V0.5.1 2026-09-16
+### Enhancements
+* Add `cmakerunner.gtests.executablePatterns` to customize which executable names are probed for GoogleTest cases; the default is `test*` (case-insensitive) and configured patterns replace it, with `*`/`?` wildcards and case-sensitive matching for patterns containing uppercase letters
+
 ## V0.5.0 2026-09-16
 ### Enhancements
 * Add `cmakerunner.gtests.caseTimeoutMs` (default 60000 ms) to enforce a per-test-case timeout in Test Explorer, and support cancelling a test run by killing the running case's process tree; timed out cases are reported as failed and remaining cases continue

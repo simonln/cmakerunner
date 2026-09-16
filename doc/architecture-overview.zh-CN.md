@@ -491,6 +491,11 @@ GoogleTest 运行配置：
 ```text
 cmakerunner.gtests.caseTimeoutMs
   单个测试用例的超时（毫秒），默认 60000，0 表示禁用超时
+
+cmakerunner.gtests.executablePatterns
+  候选可执行文件名（去扩展名）的 glob 模式，默认 ["test*"]
+  支持 * 与 ?；含大写字母的模式区分大小写
+  设置后替换默认 test* 规则
 ```
 
 Configure 变量：
@@ -753,7 +758,7 @@ Executable
     ↓
 筛选 EXECUTABLE target
     ↓
-筛选名字以 test 开头的可执行文件
+按 cmakerunner.gtests.executablePatterns 匹配可执行文件名（默认 test*）
     ↓
 检查文件是否存在
     ↓
@@ -766,7 +771,7 @@ gtestParser 解析 suite / case
 异步扫描源码补全 case 的文件/行列位置
 ```
 
-当前只自动识别名称以 `test` 开头的可执行文件，例如：
+默认模式 `test*`（大小写不敏感）可以识别：
 
 ```text
 test_math
@@ -774,11 +779,14 @@ TestNetwork
 TEST_utils.exe
 ```
 
-不会自动识别以下类型的名称：
+也可以通过 `cmakerunner.gtests.executablePatterns` 配置其他模式，例如后缀模式 `*_test`、`*_tests`，或区分大小写的 CamelCase 模式 `*Test`；一旦设置，自定义模式会替换默认的 `test*` 规则。
+
+默认模式下不会识别以下类型的名称：
 
 ```text
 my_app
 benchmark
+unit_tests（需设置 *_tests 等自定义模式）
 ```
 
 ### 10.2 测试用例解析
@@ -1111,7 +1119,9 @@ onDidChangeTargets → GTestTestController.reset()
     ↓
 （Test Explorer 刷新、Run/Debug 或构建成功后）discover()
     ↓
-筛选名字以 test 开头的 EXECUTABLE target
+筛选 EXECUTABLE target
+    ↓
+按 cmakerunner.gtests.executablePatterns 匹配文件名（默认 test*）
     ↓
 --gtest_list_tests（15s 超时，gtestParser 解析）
     ↓
@@ -1336,18 +1346,18 @@ compile_commands.json 假 fallback
     cmakerunner.gtests.caseTimeoutMs 可配置
 ```
 
-### 17.2 GoogleTest 发现策略偏保守
+### 17.2 GoogleTest 发现策略（V0.5.1 已改进）
 
-目前只扫描 target 对应的 executable，并且要求文件名以 `test` 开头。因此以下名称可能被漏检：
+V0.5.1 起候选筛选由 `cmakerunner.gtests.executablePatterns` 控制：默认 `test*`（大小写不敏感），支持 `*` 与 `?` 通配，含大写字母的模式区分大小写；一旦配置自定义模式，会替换默认规则。因此以下名称可以通过设置模式覆盖：
 
 ```text
-unit_runner
-app_tests_binary
-integration
-foo_spec
+unit_runner       → 例如 ["*_runner"]
+app_tests_binary  → 例如 ["*tests*"]
+integration       → 例如 ["integration"]
+foo_spec          → 例如 ["*_spec"]
 ```
 
-后续计划（尚未实施）：允许配置测试 target 命名正则，并对未命中命名的可执行文件读取二进制搜索 GoogleTest 标记字符串，命中后才执行 `--gtest_list_tests` 探测，同时增加缓存与并发控制。
+有意不实现的方案：读取二进制或源码搜索 GoogleTest 标记、并发探测与跨刷新缓存。所有候选仍必须通过 `--gtest_list_tests` 确认后才会注册。
 
 ### 17.3 Multi-root workspace 支持有限
 
@@ -1446,8 +1456,9 @@ TargetsView（TargetTreeDataProvider）
 VS Code TestController
 ```
 
-整体结构已经具备清晰的服务化基础。V0.5.0 已解决入口过重、假 fallback、状态分散与测试运行不可中断的问题；当前最值得关注的遗留问题是：
+整体结构已经具备清晰的服务化基础。V0.5.0 已解决入口过重、假 fallback、状态分散与测试运行不可中断的问题，V0.5.1 已解决 GoogleTest 发现规则不可配置的问题；当前最值得关注的遗留问题是：
 
 ```text
-GoogleTest 自动发现规则偏保守（后续独立计划：可配置命名正则 + 二进制标记探测）
+Multi-root workspace 支持有限
+调试器类型存在平台假设
 ```

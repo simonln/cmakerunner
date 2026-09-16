@@ -81,7 +81,7 @@
 ### 4.4 GoogleTest 发现与运行链路
 
 1. 当前 preset 变化或目标刷新后，`GTestTestController` 基于当前目标列表挑选候选可执行文件
-2. 只探测名称以 `test` 开头（大小写不敏感）的可执行目标，并确认文件真实存在
+2. 按 `cmakerunner.gtests.executablePatterns`（默认 `test*`，大小写不敏感；配置后替换默认）筛选可执行目标，并确认文件真实存在
 3. 每个候选可执行文件通过 `--gtest_list_tests` 探测是否包含 GoogleTest 用例，由 `GTestParser` 解析输出
 4. 发现到的用例按“可执行文件 -> suite -> case”注册到 VS Code 测试资源管理器
 5. 注册完成后异步通过 `GTestSourceLocator` 扫描目标源码位置，为用例补充文件与行列信息，用于 Test Explorer 定位
@@ -100,6 +100,7 @@
 | `cmakerunner.tasks.buildCommandTemplate` | `string` | `cmake --build ${buildDir} ${configurationArgument} --target ${target}` | 目标构建命令模板 |
 | `cmakerunner.tasks.runCommandTemplate` | `string` | `${executableCommand}` | 运行目标命令模板 |
 | `cmakerunner.tasks.clearTerminalBeforeRun` | `boolean` | `true` | 执行前是否清理终端 |
+| `cmakerunner.gtests.executablePatterns` | `string[]` | `["test*"]` | GoogleTest 候选可执行文件名的 glob 模式；配置后替换默认规则 |
 
 ### 支持变量
 
