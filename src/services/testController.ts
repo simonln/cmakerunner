@@ -2,7 +2,8 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { execFile } from 'child_process';
 import * as vscode from 'vscode';
-import { GTestCaseInfo, PresetInfo, TargetInfo } from '../models';
+import { SessionStore } from '../app/sessionStore';
+import { GTestCaseInfo, TargetInfo } from '../models';
 import { normalizePath } from '../utils';
 import { GTestSourceLocation, findGTestSourceLocations } from './gtestSourceLocator';
 import { OutputLogger } from './outputLogger';
@@ -47,12 +48,12 @@ export class GTestTestController implements vscode.Disposable {
   private readonly nodes = new Map<string, Node>();
   private readonly executableCaseGroups = new Map<string, Map<string, readonly GTestCaseInfo[]>>();
   private readonly executableLocations = new Map<string, Promise<Map<string, GTestSourceLocation>>>();
-  private preset?: PresetInfo;
-  private targets: TargetInfo[] = [];
+  private readonly disposables: vscode.Disposable[] = [];
   private discoverInProgress?: Promise<void>;
   private discoveryGeneration = 0;
 
   public constructor(
+    private readonly store: SessionStore,
     private readonly configurationManager: ConfigurationManager,
     private readonly logger: OutputLogger,
     private readonly debugSessionManager: DebugSessionManager,
@@ -70,20 +71,14 @@ export class GTestTestController implements vscode.Disposable {
     };
     this.controller.createRunProfile('Run', vscode.TestRunProfileKind.Run, (request, token) => this.run(request, token), true);
     this.controller.createRunProfile('Debug', vscode.TestRunProfileKind.Debug, (request, token) => this.debug(request, token), true);
+    this.disposables.push(store.onDidChangeTargets(() => this.reset()));
   }
 
   public dispose(): void {
+    for (const disposable of this.disposables) {
+      disposable.dispose();
+    }
     this.controller.dispose();
-  }
-
-  public setPreset(preset: PresetInfo | undefined): void {
-    this.preset = preset;
-    this.reset();
-  }
-
-  public setTargets(targets: readonly TargetInfo[]): void {
-    this.targets = [...targets];
-    this.reset();
   }
 
   public async discover(): Promise<void> {
@@ -102,7 +97,7 @@ export class GTestTestController implements vscode.Disposable {
   private async discoverExecutables(): Promise<void> {
     this.reset();
 
-    const preset = this.preset;
+    const preset = this.store.getCurrentPreset();
     if (!preset) {
       return;
     }
@@ -262,14 +257,14 @@ export class GTestTestController implements vscode.Disposable {
   }
 
   private async getExecutableCandidates(): Promise<TestExecutable[]> {
-    const preset = this.preset;
+    const preset = this.store.getCurrentPreset();
     if (!preset) {
       return [];
     }
 
     const seen = new Set<string>();
     const executables: TestExecutable[] = [];
-    for (const target of this.targets) {
+    for (const target of this.store.getTargets()) {
       if (target.type !== 'EXECUTABLE') {
         continue;
       }
