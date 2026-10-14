@@ -488,8 +488,9 @@ cmakerunner.tasks.runCommandTemplate
 GoogleTest 运行配置：
 
 ```text
-cmakerunner.gtests.caseTimeoutMs
-  单个测试用例的超时（毫秒），默认 60000，0 表示禁用超时
+cmakerunner.gtests.caseTimeoutSeconds
+  单个测试用例的超时（秒），默认 60，0 表示禁用超时
+  （未设置时兼容旧的毫秒配置 cmakerunner.gtests.caseTimeoutMs）
 
 cmakerunner.gtests.executablePatterns
   候选可执行文件名（去扩展名）的 glob 模式，默认 ["test*"]
@@ -833,7 +834,7 @@ VS Code Test Explorer 的 Run 请求会：
 实际执行者是 `GTestTestController.run()`（`src/services/testController.ts`），每个 case 都会重新启动一次可执行文件。V0.5.0 起：
 
 ```text
-- 单个 case 的超时由 cmakerunner.gtests.caseTimeoutMs 控制（默认 60000 ms，0 = 禁用）
+- 单个 case 的超时由 cmakerunner.gtests.caseTimeoutSeconds 控制（默认 60 秒，0 = 禁用）
 - 超时的 case 标记为 failed，消息为 “Timed out after ...”，并继续执行后续 case
 - 用户取消时杀死当前 case 的进程树并标记为 skipped；其余 case 也标记为 skipped
 - run.end() 通过 finally 保证一定会调用
@@ -1130,7 +1131,7 @@ onDidChangeTargets → GTestTestController.reset()
 异步 gtestSourceLocator 补全源码位置
     ↓
 Test Explorer
-    ├─ Run（caseTimeoutMs 超时；取消时杀进程树）
+    ├─ Run（caseTimeoutSeconds 超时；取消时杀进程树）
     └─ Debug（取消时 stopDebugging）
 ```
 
@@ -1343,7 +1344,7 @@ compile_commands.json 假 fallback
 
 测试运行无超时、无法中断
   → processRunner 提供超时与 token 取消（杀进程树），
-    cmakerunner.gtests.caseTimeoutMs 可配置
+    cmakerunner.gtests.caseTimeoutSeconds 可配置
 ```
 
 ### 17.2 GoogleTest 发现策略（V0.5.0 已改进）

@@ -114,7 +114,7 @@ After a preset is selected and targets are refreshed, the extension picks candid
 
 Use Test Explorer's built-in `Run` and `Debug` actions on a test case, suite, or executable group. Run uses `--gtest_filter=<suite.case>` for each selected case. Debug starts the installed C/C++ debugger directly with the matching GoogleTest filter.
 
-Each test case is executed with a per-case timeout controlled by `cmakerunner.gtests.caseTimeoutMs` (default 60000 ms, `0` disables the timeout). A timed out case is marked as failed with a `Timed out after ...` message and the remaining cases keep running. Cancelling a test run kills the running case's process tree and marks it and the remaining cases as skipped.
+Each test case is executed with a per-case timeout controlled by `cmakerunner.gtests.caseTimeoutSeconds` (default 60 seconds, `0` disables the timeout). A timed out case is marked as failed with a `Timed out after ...` message and the remaining cases keep running. Cancelling a test run kills the running case's process tree and marks it and the remaining cases as skipped.
 
 ### 7. Filter targets
 
@@ -135,14 +135,16 @@ The extension currently contributes these commands:
 - `cmakerunner.refresh`: reload presets and rebuild the current targets view
 - `cmakerunner.selectPreset`: choose the active configure preset
 - `cmakerunner.buildPreset`: configure the selected preset and refresh targets
-- `cmakerunner.rebuildPreset`: re-configure the selected preset and refresh targets
+- `cmakerunner.rebuildPreset`: re-configure the selected preset. Cache clearing empties the build directory, keeping only `compile_commands.json`, so the next configure regenerates everything.
 - `cmakerunner.buildTarget`: build the resolved target
-- `cmakerunner.buildTargetFromCurrentFile`: build the target mapped to the active source file
+- `cmakerunner.buildTargetFromCurrentFile`: build the target mapped to the active source file without changing the Targets view filter or selection
 - `cmakerunner.runTarget`: build and run the resolved target
 - `cmakerunner.debugTarget`: build and debug the resolved target
 - `cmakerunner.refreshGTests`: re-discover GoogleTest cases from the current targets and refresh Test Explorer items
 - `cmakerunner.filterTargets`: filter visible targets and source nodes
 - `cmakerunner.clearTargetFilter`: clear the current target filter
+
+Build, configure, and run failures raise an error notification with a **Show Terminal** action that focuses the integrated terminal panel so you can inspect the task output.
 
 ## Configuration
 
@@ -154,7 +156,7 @@ The extension exposes these settings in VS Code `settings.json`:
 | `cmakerunner.tasks.presetConfigureCommandTemplate` | `cmake --preset ${preset}` | Configure command template used for preset builds |
 | `cmakerunner.tasks.buildCommandTemplate` | `cmake --build ${buildDir} ${configurationArgument} --target ${target}` | Build command template used for targets |
 | `cmakerunner.tasks.runCommandTemplate` | `${executableCommand}` | Run command template used for targets |
-| `cmakerunner.gtests.caseTimeoutMs` | `60000` | Per-test-case timeout in milliseconds for Test Explorer GoogleTest runs. Use `0` to disable the timeout. |
+| `cmakerunner.gtests.caseTimeoutSeconds` | `60` | Per-test-case timeout in seconds for Test Explorer GoogleTest runs. Use `0` to disable the timeout. The legacy millisecond setting `cmakerunner.gtests.caseTimeoutMs` is still honored when this setting is absent. |
 | `cmakerunner.gtests.executablePatterns` | `["test*"]` | Glob patterns (`*`, `?`) matched against GoogleTest candidate executable names without extension. Patterns containing uppercase letters are case-sensitive; others are case-insensitive. When set, they replace the default `test*` rule. Candidates are still confirmed with `--gtest_list_tests`. |
 
 ### Debugger Selection

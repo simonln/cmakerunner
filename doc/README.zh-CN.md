@@ -111,7 +111,7 @@ GoogleTest 用例会注册到 VS Code 内置的 **测试资源管理器**。
 
 你可以在测试资源管理器中对单个用例、suite 或可执行文件分组使用内置 `Run` 和 `Debug`。Run 会对每个选中的用例使用 `--gtest_filter=<suite.case>`；Debug 会带着对应 GoogleTest filter 直接启动已安装的 C/C++ 调试器。
 
-每个用例的运行超时由 `cmakerunner.gtests.caseTimeoutMs` 控制（默认 60000 ms，`0` 表示禁用超时）。超时的用例会标记为失败（消息包含 `Timed out after ...`），其余用例继续执行。取消测试运行时，当前用例的进程树会被终止，当前用例与剩余用例都标记为 skipped。
+每个用例的运行超时由 `cmakerunner.gtests.caseTimeoutSeconds` 控制（默认 60 秒，`0` 表示禁用超时）。超时的用例会标记为失败（消息包含 `Timed out after ...`），其余用例继续执行。取消测试运行时，当前用例的进程树会被终止，当前用例与剩余用例都标记为 skipped。
 
 ### 7. 过滤目标
 
@@ -132,14 +132,16 @@ GoogleTest 用例会注册到 VS Code 内置的 **测试资源管理器**。
 - `cmakerunner.refresh`：重新加载 preset，并刷新当前 targets 视图
 - `cmakerunner.selectPreset`：选择当前 configure preset
 - `cmakerunner.buildPreset`：对选中的 preset 执行 configure 并刷新目标
-- `cmakerunner.rebuildPreset`：对选中的 preset 重新执行 configure 并刷新目标
+- `cmakerunner.rebuildPreset`：对选中的 preset 重新执行 configure。清除缓存会清空构建目录，仅保留 `compile_commands.json`，下一次 configure 会重新生成全部内容
 - `cmakerunner.buildTarget`：构建解析到的目标
-- `cmakerunner.buildTargetFromCurrentFile`：构建当前活动源文件映射到的目标
+- `cmakerunner.buildTargetFromCurrentFile`：构建当前活动源文件映射到的目标，不改变 Targets 视图的过滤或选中状态
 - `cmakerunner.runTarget`：构建并运行解析到的目标
 - `cmakerunner.debugTarget`：构建并调试解析到的目标
 - `cmakerunner.refreshGTests`：基于当前已发现目标重新发现 GoogleTest 用例并刷新测试资源管理器中的条目
 - `cmakerunner.filterTargets`：过滤可见目标和源码节点
 - `cmakerunner.clearTargetFilter`：清除当前目标过滤条件
+
+构建、configure 或运行失败时会弹出带 **查看终端**（Show Terminal）按钮的错误通知，点击后聚焦集成终端面板，方便查看具体错误输出。
 
 ## 配置说明
 
@@ -151,7 +153,7 @@ GoogleTest 用例会注册到 VS Code 内置的 **测试资源管理器**。
 | `cmakerunner.tasks.presetConfigureCommandTemplate` | `cmake --preset ${preset}` | preset configure 使用的命令模板 |
 | `cmakerunner.tasks.buildCommandTemplate` | `cmake --build ${buildDir} ${configurationArgument} --target ${target}` | 目标构建使用的命令模板 |
 | `cmakerunner.tasks.runCommandTemplate` | `${executableCommand}` | 目标运行使用的命令模板 |
-| `cmakerunner.gtests.caseTimeoutMs` | `60000` | 测试资源管理器中单个 GoogleTest 用例的超时（毫秒），`0` 表示禁用超时 |
+| `cmakerunner.gtests.caseTimeoutSeconds` | `60` | 测试资源管理器中单个 GoogleTest 用例的超时（秒），`0` 表示禁用超时。当该项未设置时，旧的毫秒配置 `cmakerunner.gtests.caseTimeoutMs` 仍然生效 |
 | `cmakerunner.gtests.executablePatterns` | `["test*"]` | 匹配 GoogleTest 候选可执行文件名（去扩展名）的 glob 模式（`*`、`?`）。含大写字母的模式区分大小写，其余不区分。设置后替换默认 `test*` 规则；候选仍会用 `--gtest_list_tests` 确认 |
 
 ### 调试器选择

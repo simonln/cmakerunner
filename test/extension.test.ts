@@ -197,6 +197,30 @@ describe('extension commands', () => {
     assert.strictEqual(builtTargetName, 'demo');
   });
 
+  it('buildTargetFromCurrentFile does not filter or expand the targets tree', async () => {
+    await activateExtension();
+
+    let builtTargetName: string | undefined;
+    const workflowModule = require('../src/services/workflowManager') as typeof import('../src/services/workflowManager');
+    const originalBuildTarget = workflowModule.WorkflowManager.prototype.buildTarget;
+    workflowModule.WorkflowManager.prototype.buildTarget = async (_preset, target) => {
+      builtTargetName = target.name;
+    };
+    (vscode.window as any).showQuickPick = async (items: readonly { label: string }[]) =>
+      items?.find((item) => item.label === 'demo');
+
+    try {
+      await vscode.commands.executeCommand('cmakerunner.buildTargetFromCurrentFile');
+    } finally {
+      workflowModule.WorkflowManager.prototype.buildTarget = originalBuildTarget;
+    }
+
+    assert.strictEqual(builtTargetName, 'demo');
+    const targetsTreeView = mockedVscode.__mock.createdTreeViews.get('cmakerunner.targets');
+    assert.ok(targetsTreeView);
+    assert.strictEqual(targetsTreeView?.description, undefined);
+  });
+
   it('filterTargets reuses the auto-filtered target list and applies the selected target as the tree filter', async () => {
     await activateExtension();
 

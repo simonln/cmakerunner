@@ -61,8 +61,6 @@ export function registerTargetCommands(context: CommandContext): vscode.Disposab
         return;
       }
 
-      await targetsView.applyFilter(pick.target.displayName);
-      await targetsView.revealTarget(pick.target.id);
       await workflowManager.buildTarget(preset, pick.target);
     }),
     vscode.commands.registerCommand('cmakerunner.runTarget', async (item?: TargetTreeItem | SourceTreeItem) => {

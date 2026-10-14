@@ -30,6 +30,8 @@ describe('workflow manager', () => {
     guessedExecutablePath: '/tmp/build/debug/app',
   };
 
+  const flushAsync = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
+
   const createDeps = () => {
     const calls: string[] = [];
     const configurationManager = {
@@ -173,6 +175,82 @@ describe('workflow manager', () => {
       const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
       await manager.buildTarget(preset, target);
       assert.ok(shown.includes('Build failed'));
+    } finally {
+      (vscode.window as any).showErrorMessage = originalShowErrorMessage;
+    }
+  });
+
+  it('build failure notification offers a terminal action that focuses the terminal', async () => {
+    const deps = createDeps();
+    deps.taskExecutionEngine.executeBuild = async () => ({ exitCode: 7 });
+    const originalShowErrorMessage = vscode.window.showErrorMessage;
+    const originalExecuteCommand = vscode.commands.executeCommand;
+    let offeredActions: readonly string[] = [];
+    const executedCommands: string[] = [];
+    (vscode.window as any).showErrorMessage = async (_message: string, ...actions: string[]) => {
+      offeredActions = actions;
+      return 'Show Terminal';
+    };
+    (vscode.commands as any).executeCommand = async (command: string) => {
+      executedCommands.push(command);
+      return undefined;
+    };
+    try {
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
+      await manager.buildTarget(preset, target);
+      await flushAsync();
+      assert.deepStrictEqual(offeredActions, ['Show Terminal']);
+      assert.ok(executedCommands.includes('workbench.action.terminal.focus'));
+    } finally {
+      (vscode.window as any).showErrorMessage = originalShowErrorMessage;
+      (vscode.commands as any).executeCommand = originalExecuteCommand;
+    }
+  });
+
+  it('runTarget reports a failure and offers the terminal action', async () => {
+    const deps = createDeps();
+    deps.taskExecutionEngine.executeRun = async () => ({ exitCode: 4 });
+    const originalShowErrorMessage = vscode.window.showErrorMessage;
+    const originalExecuteCommand = vscode.commands.executeCommand;
+    let shown = '';
+    let offeredActions: readonly string[] = [];
+    const executedCommands: string[] = [];
+    (vscode.window as any).showErrorMessage = async (message: string, ...actions: string[]) => {
+      shown = message;
+      offeredActions = actions;
+      return 'Show Terminal';
+    };
+    (vscode.commands as any).executeCommand = async (command: string) => {
+      executedCommands.push(command);
+      return undefined;
+    };
+    try {
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
+      await manager.runTarget(preset, target, false);
+      await flushAsync();
+      assert.ok(shown.includes('Run failed'));
+      assert.deepStrictEqual(offeredActions, ['Show Terminal']);
+      assert.ok(executedCommands.includes('workbench.action.terminal.focus'));
+    } finally {
+      (vscode.window as any).showErrorMessage = originalShowErrorMessage;
+      (vscode.commands as any).executeCommand = originalExecuteCommand;
+    }
+  });
+
+  it('runTarget stays silent when the run succeeds', async () => {
+    const deps = createDeps();
+    deps.taskExecutionEngine.executeRun = async () => ({ exitCode: 0 });
+    const originalShowErrorMessage = vscode.window.showErrorMessage;
+    let errorCount = 0;
+    (vscode.window as any).showErrorMessage = async () => {
+      errorCount += 1;
+      return undefined;
+    };
+    try {
+      const manager = new WorkflowManager(deps.configurationManager as never, deps.taskExecutionEngine as never, deps.logger as never, deps.debugSessionManager as never);
+      await manager.runTarget(preset, target, false);
+      await flushAsync();
+      assert.strictEqual(errorCount, 0);
     } finally {
       (vscode.window as any).showErrorMessage = originalShowErrorMessage;
     }

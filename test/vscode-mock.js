@@ -86,6 +86,9 @@ const vscode = {
           type: stats.isDirectory() ? 2 : 1,
         };
       },
+      delete: async (uri, options) => {
+        await fs.promises.rm(uri.fsPath, { recursive: options?.recursive ?? false, force: true });
+      },
     },
   },
 

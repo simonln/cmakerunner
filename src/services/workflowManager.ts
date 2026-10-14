@@ -66,7 +66,11 @@ export class WorkflowManager {
     const runCommand = this.configurationManager.getRunCommand(runVariables);
     const runLabel = `Run ${target.displayName} [${preset.name}]`;
     this.logger.info(`Launching run task for target ${target.name}`);
-    await this.taskExecutionEngine.executeRun(runCommand, runLabel, preset.binaryDir);
+    const runResult = await this.taskExecutionEngine.executeRun(runCommand, runLabel, preset.binaryDir);
+
+    if (typeof runResult.exitCode === 'number' && runResult.exitCode !== 0) {
+      this.reportRunFailure(target, runResult.exitCode);
+    }
   }
 
   public async debugTarget(preset: PresetInfo, target: TargetInfo): Promise<void> {
@@ -202,7 +206,22 @@ export class WorkflowManager {
     }
 
     this.logger.error(`${failureVerb} failed for ${logName} with exit code ${exitCode}`);
-    void vscode.window.showErrorMessage(`${failureVerb} failed for ${displayName}. Exit code: ${exitCode}`);
+    this.notifyFailure(`${failureVerb} failed for ${displayName}. Exit code: ${exitCode}`);
+  }
+
+  private reportRunFailure(target: TargetInfo, exitCode: number): void {
+    this.logger.error(`Run failed for ${target.name} with exit code ${exitCode}`);
+    this.notifyFailure(`Run failed for ${target.displayName}. Exit code: ${exitCode}`);
+  }
+
+  private notifyFailure(message: string): void {
+    void vscode.window.showErrorMessage(message, SHOW_TERMINAL_ACTION).then((action) => {
+      if (action === SHOW_TERMINAL_ACTION) {
+        return vscode.commands.executeCommand('workbench.action.terminal.focus');
+      }
+
+      return undefined;
+    });
   }
 
   private async ensureCMakeFileApiQuery(preset: PresetInfo): Promise<void> {
@@ -217,6 +236,8 @@ export class WorkflowManager {
     }
   }
 }
+
+const SHOW_TERMINAL_ACTION = 'Show Terminal';
 
 function getMonotonicNow(): number {
   return typeof performance !== 'undefined' && typeof performance.now === 'function'

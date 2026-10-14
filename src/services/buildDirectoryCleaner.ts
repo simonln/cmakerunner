@@ -3,6 +3,8 @@ import * as vscode from 'vscode';
 import { PresetInfo } from '../models';
 import { OutputLogger } from './outputLogger';
 
+const KEPT_ENTRY_NAME = 'compile_commands.json';
+
 export async function clearPresetBuildDirectory(preset: PresetInfo, logger: OutputLogger): Promise<boolean> {
   const buildDirectoryUri = vscode.Uri.file(preset.binaryDir);
 
@@ -21,40 +23,27 @@ export async function clearPresetBuildDirectory(preset: PresetInfo, logger: Outp
   }
 
   try {
-    const cmakeCleanupTargets = [
-      '.cmake',
-      'CMakeCache.txt',
-      'CMakeFiles',
-    ];
+    const entries = await vscode.workspace.fs.readDirectory(buildDirectoryUri);
+    const removedEntries: string[] = [];
 
-    const cleanedPaths: string[] = [];
-
-    for (const targetName of cmakeCleanupTargets) {
-      const targetUri = vscode.Uri.file(path.join(preset.binaryDir, targetName));
-
-      try {
-        await vscode.workspace.fs.stat(targetUri);
-      } catch (error) {
-        const code = (error as vscode.FileSystemError | undefined)?.code;
-        if (code === 'FileNotFound') {
-          continue;
-        }
-
-        throw error;
+    for (const [name] of entries) {
+      if (name === KEPT_ENTRY_NAME) {
+        continue;
       }
 
+      const targetUri = vscode.Uri.file(path.join(preset.binaryDir, name));
       await vscode.workspace.fs.delete(targetUri, { recursive: true, useTrash: false });
-      cleanedPaths.push(targetUri.fsPath);
+      removedEntries.push(name);
     }
 
     logger.info(
-      `Cleaning CMake configure artifacts for preset ${preset.name}: ${cleanedPaths.length > 0 ? cleanedPaths.join(', ') : 'no known configure artifacts found'}`,
+      `Cleared build directory for preset ${preset.name}: removed ${removedEntries.length} entr${removedEntries.length === 1 ? 'y' : 'ies'}, kept ${KEPT_ENTRY_NAME}`,
     );
 
     return true;
   } catch (error) {
-    logger.warn(`Unable to clean CMake configure artifacts in ${preset.binaryDir}: ${error instanceof Error ? error.message : String(error)}`);
-    void vscode.window.showErrorMessage(`Unable to clean CMake configure artifacts for preset ${preset.displayName}.`);
+    logger.warn(`Unable to clear the build directory in ${preset.binaryDir}: ${error instanceof Error ? error.message : String(error)}`);
+    void vscode.window.showErrorMessage(`Unable to clear the build directory for preset ${preset.displayName}.`);
     return false;
   }
 }

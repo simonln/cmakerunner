@@ -29,7 +29,7 @@ npm run package:vsix    # Build VSIX to dist/
 - Requires successful configure before targets appear
 - Uses VS Code Tasks API and Debug API for build/run/debug
 - GoogleTest cases are registered in VS Code Test Explorer from discovered `EXECUTABLE` targets whose executable file name matches `cmakerunner.gtests.executablePatterns` (default `test*`, case-insensitive), probed with `--gtest_list_tests`
-- Test runs use `cmakerunner.gtests.caseTimeoutMs` (default 60000 ms, `0` disables) and can be cancelled; cancelling kills the case process tree via `src/services/processRunner.ts`
+- Test runs use `cmakerunner.gtests.caseTimeoutSeconds` (default 60 s, `0` disables; legacy `caseTimeoutMs` is honored when absent) and can be cancelled; cancelling kills the case process tree via `src/services/processRunner.ts`
 
 ## Extension Commands
 

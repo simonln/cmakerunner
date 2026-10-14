@@ -2,7 +2,7 @@
     "name": "cmakerunner",
     "displayName": "CMake Runner",
     "description": "Preset, target, build, run, and debug workflow for CMake-based C++ projects.",
-    "version": "0.5.0",
+    "version": "0.5.1",
     "publisher": "Simon-tools",
     "repository": {
         "type": "git",
@@ -206,10 +206,10 @@
                     "default": "${executableCommand}",
                     "description": "Run command template. Supports ${buildDir}, ${preset}, ${target}, ${sourceDir}, ${buildPreset}, ${configuration}, ${configurationArgument}, ${buildPresetArgument}, ${executablePath}, ${quotedExecutablePath}, and ${executableCommand}."
                 },
-                "cmakerunner.gtests.caseTimeoutMs": {
+                "cmakerunner.gtests.caseTimeoutSeconds": {
                     "type": "number",
-                    "default": 60000,
-                    "description": "Per-test-case timeout in milliseconds for Test Explorer GoogleTest runs. Use 0 to disable the timeout."
+                    "default": 60,
+                    "description": "Per-test-case timeout in seconds for Test Explorer GoogleTest runs. Use 0 to disable the timeout."
                 },
                 "cmakerunner.gtests.executablePatterns": {
                     "type": "array",

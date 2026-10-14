@@ -1,5 +1,15 @@
 # CMake Runner
 
+## V0.5.1 2026-10-14
+### Enhancements
+* Rename the GoogleTest per-case timeout to `cmakerunner.gtests.caseTimeoutSeconds` (default 60 seconds, `0` disables); the legacy `cmakerunner.gtests.caseTimeoutMs` value is honored when the new setting is absent
+* Build the target for the active source file without changing the Targets view filter or selection
+* Add a **Show Terminal** action to build, configure, and run failure notifications that focuses the integrated terminal, and report failures from target runs
+* Clear the build cache by emptying the build directory while keeping `compile_commands.json`, so the next configure regenerates everything
+
+### Breaking Changes
+* Replace `cmakerunner.gtests.caseTimeoutMs` (milliseconds) with `cmakerunner.gtests.caseTimeoutSeconds` (seconds)
+
 ## V0.5.0 2026-09-16
 ### Enhancements
 * Add `cmakerunner.gtests.executablePatterns` to customize which executable names are probed for GoogleTest cases; the default is `test*` (case-insensitive) and configured patterns replace it, with `*`/`?` wildcards and case-sensitive matching for patterns containing uppercase letters

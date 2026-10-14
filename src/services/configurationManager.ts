@@ -6,6 +6,8 @@ type PresetTaskVariables = Pick<TaskVariables, 'buildDir' | 'preset' | 'sourceDi
 
 export const DEFAULT_GTEST_EXECUTABLE_PATTERNS: readonly string[] = ['test*'];
 
+export const DEFAULT_GTEST_CASE_TIMEOUT_SECONDS = 60;
+
 export class ConfigurationManager {
   public getPresetConfigureCommand(variables: PresetTaskVariables): string {
     return replaceTemplateVariables(this.settings().get<string>('tasks.presetConfigureCommandTemplate', ''), variables, { quoteSpacedValues: true });
@@ -20,12 +22,19 @@ export class ConfigurationManager {
   }
 
   public getGTestCaseTimeoutMs(): number {
-    const value = this.settings().get<number>('gtests.caseTimeoutMs', 60000);
-    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
-      return 60000;
+    const settings = this.settings();
+    const seconds = getExplicitSetting<number>(settings, 'gtests.caseTimeoutSeconds');
+    if (seconds !== undefined) {
+      return isValidTimeout(seconds) ? seconds * 1000 : DEFAULT_GTEST_CASE_TIMEOUT_SECONDS * 1000;
     }
 
-    return value;
+    // Backwards compatibility: older versions stored the timeout in milliseconds.
+    const legacyMilliseconds = getExplicitSetting<number>(settings, 'gtests.caseTimeoutMs');
+    if (legacyMilliseconds !== undefined) {
+      return isValidTimeout(legacyMilliseconds) ? legacyMilliseconds : DEFAULT_GTEST_CASE_TIMEOUT_SECONDS * 1000;
+    }
+
+    return DEFAULT_GTEST_CASE_TIMEOUT_SECONDS * 1000;
   }
 
   public getGTestExecutablePatterns(): readonly string[] {
@@ -133,6 +142,19 @@ export class ConfigurationManager {
 
 function hasExtension(extensionId: string): boolean {
   return vscode.extensions.all.some((extension) => extension.id === extensionId);
+}
+
+function getExplicitSetting<T>(settings: vscode.WorkspaceConfiguration, key: string): T | undefined {
+  const inspected = settings.inspect<T>(key);
+  if (!inspected) {
+    return undefined;
+  }
+
+  return inspected.workspaceFolderValue ?? inspected.workspaceValue ?? inspected.globalValue;
+}
+
+function isValidTimeout(value: number): boolean {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
 function applyPlatformOverrides(configuration: vscode.DebugConfiguration): vscode.DebugConfiguration {
